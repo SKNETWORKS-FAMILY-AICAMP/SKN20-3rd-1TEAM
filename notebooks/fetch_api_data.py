@@ -44,14 +44,9 @@ def fetch_youth_policies(page_size):
         api_url = endpoint['url']
         params = endpoint['params']
         
-        print(f"\n[시도 {i}/{len(endpoints)}]")
-        print(f"URL: {api_url}")
-        print(f"Parameters: {params}")
-        
         try:
             response = requests.get(api_url, params=params, headers=headers, timeout=60)
             
-            print(f"응답 상태 코드: {response.status_code}")
             
             if response.status_code == 200:
                 print(f"✅ 응답 성공!")
@@ -60,18 +55,6 @@ def fetch_youth_policies(page_size):
                 # JSON 파싱
                 try:
                     data = response.json()
-                    
-                    # 데이터 구조 확인
-                    if isinstance(data, dict):
-                        print(f"\n📊 데이터 구조:")
-                        for key in data.keys():
-                            if isinstance(data[key], list):
-                                print(f"  - {key}: {len(data[key])}개 항목")
-                            else:
-                                print(f"  - {key}: {type(data[key]).__name__}")
-                    elif isinstance(data, list):
-                        print(f"📊 리스트 형태: {len(data)}개 항목")
-                    
                     return data
                     
                 except json.JSONDecodeError as e:
@@ -126,23 +109,6 @@ def main():
     data = fetch_youth_policies(page_size=3000)
     
     if data:
-        # 데이터 샘플 출력
-        print("\n" + "=" * 70)
-        print("📄 데이터 샘플 (첫 번째 항목):")
-        print("=" * 70)
-        
-        if isinstance(data, dict):
-            # 정책 리스트 찾기
-            for key in ['empl', 'list', 'data', 'policies', 'items', 'youthPolicyList']:
-                if key in data and isinstance(data[key], list) and len(data[key]) > 0:
-                    print(json.dumps(data[key][0], indent=2, ensure_ascii=False))
-                    break
-            else:
-                # 전체 구조 출력
-                print(json.dumps(data, indent=2, ensure_ascii=False)[:1000])
-        elif isinstance(data, list) and len(data) > 0:
-            print(json.dumps(data[0], indent=2, ensure_ascii=False))
-        
         # JSON 저장
         filepath = save_json(data)
         
