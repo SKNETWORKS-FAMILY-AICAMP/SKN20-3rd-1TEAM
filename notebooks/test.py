@@ -334,25 +334,38 @@ class YouthPolicyRAG:
 답변:"""
         return ChatPromptTemplate.from_template(template)
     
-    def self_rag_verify(self, question:str, answer:str):
-        """Self-rag : 답변이 컨텍스트에 근거하는지 검증"""
-        try :
-            context = self._format_docs(docs)
+    def self_rag_verify(self, question: str, answer: str, context: str):
+        """Self-RAG : 답변이 컨텍스트에 근거하는지 검증
+        
+        Args:
+            question: 사용자 질문
+            answer: 생성된 답변
+            context: 검색된 정책 정보 (이미 포맷된 문자열)
+        """
+        try:
             chain = self.self_rag_prompt | self.llm | StrOutputParser()
             resp = chain.invoke({"context": context, "answer": answer})
+            
             # JSON만 추출
             if "```json" in resp:
                 resp = resp.split("```json")[1].split("```")[0].strip()
             elif "```" in resp:
                 resp = resp.split("```")[1].split("```")[0].strip()
-            result = json.loads(resp)
-            is_grounded = result.get("is_grounded",True)
-
-            if is_grounded :
-                print("✅ Self-RAG : 근거 기반 답변으로 판단")
-                return answer
             
-            # 수정 제안이 없으면 일단 원답 유지
+            result = json.loads(resp)
+            is_grounded = result.get("is_grounded", True)
+            issues = result.get("issues", [])
+            suggested_fix = result.get("suggested_fix", "")
+
+            if is_grounded:
+                print("✅ Self-RAG: 근거 기반 답변으로 판단")
+                return answer
+            else:
+                print(f"⚠️ Self-RAG: 답변에 문제 발견 - {issues}")
+                if suggested_fix:
+                    print(f"🔧 Self-RAG: 수정된 답변 사용")
+                    return suggested_fix
+            
             return answer
         except Exception as e:
             print(f"⚠️ Self-RAG 검증 실패: {e}")
@@ -758,7 +771,7 @@ class YouthPolicyRAG:
                  "question": question})
             
             # 5) Self-RAG 검증
-            answer = self._self_rag_verify(question, raw_answer, docs)
+            answer = self.self_rag_verify(question, raw_answer, context)
         # 3단계 : 대화 메모리에 저장
         if self.chat_history is not None and answer:
             self.chat_history.append(HumanMessage(content=question))
