@@ -137,7 +137,7 @@ class MultiQueryGenerator:
 class YouthPolicyRAG:
     """청년 정책 RAG 시스템"""
     
-    def __init__(self, db_path="../data/vectordb", use_multi_query=True):
+    def __init__(self, db_path="../data/vectordb", use_multi_query=True, use_multi_agent = False):
         """
         초기화
         
@@ -148,31 +148,51 @@ class YouthPolicyRAG:
         safe_print("🚀 RAG Pipeline 초기화 중...")
         
         # LLM 초기화
-        self.llm = ChatOpenAI(
-            model="gpt-4o-mini",
-            temperature=0.3,
-            api_key=OPENAI_API_KEY
-        )
+        try:
+            self.llm = ChatOpenAI(
+                model="gpt-4o-mini",
+                temperature=0.3,
+                api_key=OPENAI_API_KEY
+            )
+        except Exception as e:
+            safe_print(f"❌ LLM 초기화 오류: {e}", force=True)
+            raise
         
         # 임베딩 모델
-        self.embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            api_key=OPENAI_API_KEY
-        )
+        try:
+            self.embeddings = OpenAIEmbeddings(
+                model="text-embedding-3-small",
+                api_key=OPENAI_API_KEY
+            )
+        except Exception as e:
+            safe_print(f"❌ 임베딩 모델 초기화 오류: {e}", force=True)
+            raise
         
         # Vector Store 로드
         current_dir = os.path.dirname(os.path.abspath(__file__))
         full_db_path = os.path.join(current_dir, db_path)
         
-        self.vectorstore = Chroma(
-            persist_directory=full_db_path,
-            collection_name="youth_policies",
-            embedding_function=self.embeddings
-        )
+        safe_print(f"📁 벡터DB 경로: {full_db_path}", force=True)
         
-        # ChromaDB collection 직접 접근 (필터링용)
-        chroma_client = chromadb.PersistentClient(path=full_db_path)
-        self.collection = chroma_client.get_collection(name="youth_policies")
+        try:
+            self.vectorstore = Chroma(
+                persist_directory=full_db_path,
+                collection_name="youth_policies",
+                embedding_function=self.embeddings
+            )
+            safe_print(f"✅ ChromaDB 연결 성공")
+        except Exception as e:
+            safe_print(f"❌ ChromaDB 연결 오류: {e}", force=True)
+            raise
+        
+        # ChromaDB collection 직接 접근 (필터링용)
+        try:
+            chroma_client = chromadb.PersistentClient(path=full_db_path)
+            self.collection = chroma_client.get_collection(name="youth_policies")
+            safe_print(f"✅ Collection 접근 성공")
+        except Exception as e:
+            safe_print(f"❌ Collection 접근 오류: {e}", force=True)
+            raise
         
         # 문서 로딩 (한 번만)
         self.documents = self._load_documents()
@@ -202,7 +222,7 @@ class YouthPolicyRAG:
 
         self.chat_history = []      # 대화 메모리용 리스트
         self.self_rag_prompt = self._create_self_rag_prompt()  # Self-RAG 프롬프트
-        
+        self.use_multi_agent = use_multi_agent
         
         safe_print("✅ RAG Pipeline 초기화 완료!")
     
@@ -269,21 +289,27 @@ class YouthPolicyRAG:
    - 예: "창업 지원금", "취업 지원", "주거 지원", "대출", "교육" 등
 
 2. GENERAL_CHAT
-   - 일반적인 인사, 감사 표현
+   - 정책과 무관한 잡담이 아니라 일반적인 인사, 감사, 대화 기록 참조 요청만 해당
    - 대화 기록 참조 요청 (이전 대화, 아까 말한 것, 처음 질문 등)
    - 예: "안녕하세요", "고맙습니다", "도움이 되었어요"
    - 예: "이전에 물어본 거 보여줘", "아까 말한 정책 뭐였지?", "맨 처음 질문 보여줘"
 
 3. REQUEST_INFO
-   - 사용자 정보(나이, 지역)가 필요한 경우
-   - 예: 정책 질문인데 사용자 정보가 없는 경우
+   - 정책 질문인데 사용자 정보(나이, 지역)가 필요한 경우
 
 4. CLARIFY
    - 질문이 불명확하여 추가 정보가 필요한 경우
    - 예: "정책", "지원금" 같이 너무 광범위한 질문
    - **주의**: "이전", "아까", "처음" 같은 대화 참조는 GENERAL_CHAT으로 분류하세요
 
-**중요**: 반드시 JSON 형식으로만 답변하세요.
+5. OUT_OF_SCOPE
+    - 청년 정책과 무관한 일상 질문/감정 표현/잡담
+    - 예 : "배고프다", "오늘 뭐 먹지?", "날씨 어때?", "심심해
+
+**중요**:
+- 청년 정책과 직접 관련이 없으면 OUT_OF_SCOPE를 선택하세요.
+- 인사/감사/대화참조 요청만 GENERAL_CHAT으로 분류하세요.
+- 반드시 JSON 형식으로만 답변하세요.
 
 응답 형식:
 {{
@@ -673,6 +699,61 @@ class YouthPolicyRAG:
             role = "사용자" if isinstance(msg, HumanMessage) else "상담사"
             lines.append(f"{role}: {msg.content}")
         return "\n".join(lines)
+    
+    def _run_multi_agent_mode(self, question: str):
+    # 라우터 재사용
+        routing_result = self.route_query(question)
+        action = routing_result.get('action')
+
+        if action == "SEARCH_POLICY":
+            # 기존 GENERAL_CHAT 분기 로직을 그대로 쓰거나
+            # query() 안의 프롬프트를 그대로 복사해서 사용
+            chat_history_txt = self._format_chat_history()
+            prompt = ChatPromptTemplate.from_template(
+                """당신은 친근한 청년 정책 상담사입니다.
+                [대화 기록]
+                {chat_history}
+                [사용자 질문]
+                {question}
+                답변:"""
+            )
+            return (prompt | self.llm | StrOutputParser()).invoke(
+                {"chat_history": chat_history_txt, "question": question}
+            )
+        
+        elif action == "REQUEST_INFO":
+            return """더 정확한 정책을 추천해드리기 위해 정보가 필요합니다! 😊
+            1. 나이
+            2. 지역 (예: 서울특별시, 경기도 의정부시)
+            정보를 입력해주시면 맞춤형 정책을 찾아드리겠습니다!"""
+        
+        elif action == "CLARIFY":
+            return """질문을 조금만 더 구체적으로 말씀해주시겠어요? 😊
+            예) 취업/창업/주거/금융/교육 중 어떤 분야가 궁금하신가요?"""
+        
+        # SEARCH_POLICY 기본 흐름은 기존 내부 메서드 재사용
+        docs = self._retrieve_and_filter(question)
+        context = self._format_docs(docs)
+        chat_history_txt = self._format_chat_history()
+
+        prompt = ChatPromptTemplate.from_template(
+            """당신은 청년 정책 전문 상담사입니다.
+            [대화 기록]
+            {chat_history}
+            [정책 정보]
+            {context}
+            [사용자 질문]
+            {question}
+            답변:"""
+        )
+
+        raw_answer = (prompt | self.llm | StrOutputParser()).invoke(
+            {"chat_history": chat_history_txt,
+             "context": context,
+             "question": question}
+        )
+        return self.self_rag_verify(question, raw_answer, context)
+    
 
     def query(self, question: str):
         """
@@ -690,6 +771,17 @@ class YouthPolicyRAG:
         
         safe_print(f"\n🔍 질문: {question}{user_info}")
         
+        # (추가) 멀티 에이전트 모드 사용 시
+        if getattr(self, "use_multi_agent", False):
+            answer = self.multi_agent.run(question)
+
+            # 기존 메모리 저장 로직은 그대로 재사용
+            if self.chat_history is not None and answer:
+                self.chat_history.append(HumanMessage(content=question))
+                self.chat_history.append(AIMessage(content=answer))
+
+            return answer
+
         # 1단계: Router로 질문 분석
         routing_result = self.route_query(question)
         action = routing_result.get('action')
@@ -740,7 +832,20 @@ class YouthPolicyRAG:
 - "전월세 대출 정책이 있나요?"
 
 구체적인 분야를 말씀해주시면 더 정확한 정책을 찾아드릴게요!"""
-        
+        elif action == "OUT_OF_SCOPE":
+            safe_print("🚫 정책 범위 외 질문\n")
+            answer = """저는 청년 정책 상담에 집중하는 챗봇입니다😊
+            청년 정책과 관련된 질문을 해주시면 더 정확히 도와드릴게요!
+            
+            예시:
+            - "청년 취업 지원 프로그램 알려주세요"
+            - "전월세 보증금/월세 지원 정책이 있나요?"
+            - "청년 창업 지원금 조건이 궁금해요"
+            - "자격증/교육비 지원 정책 추천해주세요"
+
+            원하시면 '취업/창업/주거/교육/금융' 중 관심 분야를 말씀해 주셔도 됩니다!
+            """
+            
         else:  # SEARCH_POLICY
             safe_print("⏳ 정책 검색 중...\n")
             # 1) 문서 검색
