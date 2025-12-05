@@ -14,6 +14,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.documents import Document
+from langchain_core.messages import HumanMessage, AIMessage
 
 # 환경 변수 로드
 load_dotenv()
@@ -188,6 +189,10 @@ class YouthPolicyRAG:
         
         # RAG 체인 구성
         self.rag_chain = self._build_chain()
+
+        self.chat_history = []      # 대화 메모리용 리스트
+        self.self_rag_prompt = self._create_self_rag_prompt()  # Self-RAG 프롬프트
+        
         
         print("✅ RAG Pipeline 초기화 완료!")
     
@@ -288,6 +293,55 @@ class YouthPolicyRAG:
         
         return ChatPromptTemplate.from_template(template)
     
+    def _create_self_rag_prompt(self):
+        """Self-RAG 프롬프트 생성"""
+        template = """당신은 청년 정책 QA 시스템의 검증자입니다.
+아래는 검색을 통해 수집된 정책 정보(context)와, 모델이 생성한 초안 답변입니다.
+📋 정책 정보:
+{context}
+📝 모델 답변 초안:
+{answer}
+
+다음 기준으로 답변을 평가하세요:
+1. 답변 내용이 위 정책 정보에 실제로 존재하는 정보에 기반하는지 확인하세요.
+2. 존재하지 않는 정책명을 새로 만들어내지 않았는지 확인하세요.
+3. 지원대상, 나이, 지역, 지원금액 등 주요 조건이 왜곡되지 않았는지 확인하세요.
+
+반드시 아래 JSON 형식으로만 출력하세요:
+
+{{
+  "is_grounded": true or false,
+  "issues": ["문제1", "문제2"],
+  "suggested_fix": "문제가 있을 경우, 더 안전하고 정확한 수정 답변을 한글로 작성"
+}}
+
+답변:"""
+        return ChatPromptTemplate.from_template(template)
+    
+    def self_rag_verify(self, question:str, answer:str):
+        """Self-rag : 답변이 컨텍스트에 근거하는지 검증"""
+        try :
+            context = self._format_docs(docs)
+            chain = self.self_rag_prompt | self.llm | StrOutputParser()
+            resp = chain.invoke({"context": context, "answer": answer})
+            # JSON만 추출
+            if "```json" in resp:
+                resp = resp.split("```json")[1].split("```")[0].strip()
+            elif "```" in resp:
+                resp = resp.split("```")[1].split("```")[0].strip()
+            result = json.loads(resp)
+            is_grounded = result.get("is_grounded",True)
+
+            if is_grounded :
+                print("✅ Self-RAG : 근거 기반 답변으로 판단")
+                return answer
+            
+            # 수정 제안이 없으면 일단 원답 유지
+            return answer
+        except Exception as e:
+            print(f"⚠️ Self-RAG 검증 실패: {e}")
+            return answer
+
     def _build_chain(self):
         """RAG 체인 구성"""
         chain = (
@@ -463,6 +517,17 @@ class YouthPolicyRAG:
 """)
         return "\n".join(formatted)
     
+    def _format_chat_history(self) -> str:
+        """self.chat_history(HumanMessage/AIMessage 리스트)를 사람이 읽기 좋은 문자열로 변환"""
+        if not self.chat_history:
+            return ""
+        
+        lines = []
+        for msg in self.chat_history:
+            role = "사용자" if isinstance(msg, HumanMessage) else "상담사"
+            lines.append(f"{role}: {msg.content}")
+        return "\n".join(lines)
+
     def query(self, question: str):
         """
         질문에 답변 (Router 적용)
@@ -585,7 +650,91 @@ class YouthPolicyRAG:
                 "reason": "라우팅 실패, 기본 검색",
                 "keywords": []
             }
-    
+        
+    def advanced_query(self, question:str) -> str:
+        """대화 메모리 + Self-RAG 적용 고급 질의응답 함수.
+        기존 query()는 건드리지 않고, 이 메서드를 별도로 사용하면 됨."""
+        user_info = ""
+        if self.user_age or self.user_region:
+            user_info = f" (나이: {self.user_age}세, 지역: {self.user_region})"
+        print(f"\n🔍 [ADV]질문: {question}{user_info}")
+
+        # 1단계 : Router 사용 (기존 로직 재사용)
+        routing_result = self.route_query(question)
+        action = routing_result.get('action')
+        answer = ""
+
+        # 2단계 : Action에 따라 처리
+        if action == "GENERAL_CHAT":
+            print("💬 [ADV]일반 대화 모드\n")
+            prompt = ChatPromptTemplate.from_template(
+                """당신은 친근한 청년 정책 상담사입니다.
+                아래는 지금까지의 대화 기록입니다
+                
+                [대화 기록]
+                {chat_history}
+                [사용자 질문]
+                {question}
+
+                간단하고 따뜻하게 답변하세요.
+
+                답변:"""
+                )
+            chat_history_txt = self._format_chat_history()
+            answer = (prompt | self.llm | StrOutputParser()).invoke(
+                {"chat_history": chat_history_txt, "question": question})
+        elif action == "REQUEST_INFO":
+            print("📝 [ADV]사용자 정보 필요\n")
+            answer = """더 정확한 정책을 추천해드리기 위해 정보가 필요합니다! 😊
+            
+            다음 정보를 알려주시겠어요?
+            1. 나이: 만 몇 세이신가요?
+            2. 지역: 어디에 거주하시나요? (예: 서울특별시, 경기도 의정부시)
+            
+            정보를 입력하시면 맞춤형 정책을 찾아드리겠습니다!"""
+        else : # SEARCH_POLICY or 기타
+            print("⏳ [ADV]정책 검색 중...\n")
+            # 1) 문서 검색
+            docs = self._retrieve_and_filter(question)
+            # 2) 컨텍스트 포매팅
+            context = self._format_docs(docs)
+            # 3) 대화 기록
+            chat_history_txt = self._format_chat_history()
+
+            # 4) 1차 답변 생성 (대화 기록 + 컨텍스트 같이 제공)
+            prompt = ChatPromptTemplate.from_template("""당신은 청년 정책 전문 상답사입니다
+            아래는 지금까지의 대화 기록과, 검색된 정책 정보입니다.
+            
+            [대화 기록]
+            {chat_history}
+            
+            [정책 정보]
+            {context}
+
+            [사용자 질문]
+            {question}
+            답변 가이드라인:
+            1. 제공된 정책 정보만 사용하세요.
+            2. 정책명, 지원내용, 신청방법을 명확히 설명하세요.
+            3. 정보가 부족하면 "제공된 정보에는 없습니다"라고 말하세요.
+            4. 친근하고 격려하는 톤으로 작성하세요.
+            5. 필요시 추가 질문을 유도하세요.
+                                                      
+            답변:"""
+                    )
+            raw_answer = (prompt | self.llm | StrOutputParser()).invoke(                                                                                                                              
+                {"chat_history": chat_history_txt,
+                 "context": context,
+                 "question": question})
+            
+            # 5) Self-RAG 검증
+            answer = self._self_rag_verify(question, raw_answer, docs)
+        # 3단계 : 대화 메모리에 저장
+        if self.chat_history is not None and answer:
+            self.chat_history.append(HumanMessage(content=question))
+            self.chat_history.append(AIMessage(content=answer))
+        return answer
+
     def interactive_mode(self):
         """대화형 모드"""
         print("\n" + "=" * 70)
