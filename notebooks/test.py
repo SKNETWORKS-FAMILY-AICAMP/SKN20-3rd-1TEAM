@@ -13,7 +13,6 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.retrievers import BM25Retriever, TFIDFRetriever
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -76,21 +75,21 @@ class MultiQueryGenerator:
     
     def _create_prompt(self):
         """MultiQuery 프롬프트 생성"""
-        template = """당신은 AI 검색 전문가입니다. 사용자의 질문을 다양한 관점에서 재작성하여 더 나은 검색 결과를 얻으려고 합니다.
+        template = """당신은 AI 검색 전문가입니다. 사용자의 질문을 약간 다른 표현으로 재작성하여 더 나은 검색 결과를 얻으려고 합니다.
 
 원본 질문: {question}
 
-위 질문을 **3가지 다른 방식**으로 재작성하세요:
-1. 더 구체적으로
-2. 더 넓은 관점에서
-3. 다른 키워드 사용
+**중요**: 원본 질문의 핵심 의도는 절대 변경하지 마세요. 단지 표현만 살짝 바꾸세요.
+
+위 질문을 **2가지 방식**으로만 재작성하세요:
+1. 동일한 의미를 다른 단어로 표현 (예: "창업 지원" → "스타트업 지원")
+2. 좀 더 구체적인 키워드 추가 (예: "취업 지원" → "청년 취업 지원 프로그램")
 
 응답 형식 (JSON):
 {{
   "queries": [
     "재작성된 질문 1",
-    "재작성된 질문 2",
-    "재작성된 질문 3"
+    "재작성된 질문 2"
   ]
 }}
 
@@ -110,9 +109,12 @@ class MultiQueryGenerator:
                 response = response.split("```")[1].split("```")[0].strip()
             
             result = json.loads(response)
-            queries = result.get("queries", [question])
+            expanded_queries = result.get("queries", [])
             
-            print(f"🔄 MultiQuery 생성: {len(queries)}개")
+            # 원본 질문을 항상 첫 번째로 포함
+            queries = [question] + expanded_queries
+            
+            print(f"🔄 MultiQuery 생성: {len(queries)}개 (원본 포함)")
             for i, q in enumerate(queries, 1):
                 print(f"  {i}. {q}")
             
@@ -126,12 +128,13 @@ class MultiQueryGenerator:
 class YouthPolicyRAG:
     """청년 정책 RAG 시스템"""
     
-    def __init__(self, db_path="../data/vectordb"):
+    def __init__(self, db_path="../data/vectordb", use_multi_query=True):
         """
         초기화
         
         Args:
             db_path: ChromaDB 경로
+            use_multi_query: MultiQuery 사용 여부 (기본: True)
         """
         print("🚀 RAG Pipeline 초기화 중...")
         
@@ -181,17 +184,11 @@ class YouthPolicyRAG:
         self.user_age = None
         self.user_region = None
         
-        # MultiQuery 사용 여부 (기본: True)
-        self.use_multi_query = True
-        
-        # 프롬프트 템플릿
-        self.prompt = self._create_prompt()
+        # MultiQuery 사용 여부
+        self.use_multi_query = use_multi_query
         
         # Router 프롬프트
         self.router_prompt = self._create_router_prompt()
-        
-        # RAG 체인 구성
-        self.rag_chain = self._build_chain()
 
         self.chat_history = []      # 대화 메모리용 리스트
         self.self_rag_prompt = self._create_self_rag_prompt()  # Self-RAG 프롬프트
@@ -263,7 +260,9 @@ class YouthPolicyRAG:
 
 2. GENERAL_CHAT
    - 일반적인 인사, 감사 표현
+   - 대화 기록 참조 요청 (이전 대화, 아까 말한 것, 처음 질문 등)
    - 예: "안녕하세요", "고맙습니다", "도움이 되었어요"
+   - 예: "이전에 물어본 거 보여줘", "아까 말한 정책 뭐였지?", "맨 처음 질문 보여줘"
 
 3. REQUEST_INFO
    - 사용자 정보(나이, 지역)가 필요한 경우
@@ -272,41 +271,17 @@ class YouthPolicyRAG:
 4. CLARIFY
    - 질문이 불명확하여 추가 정보가 필요한 경우
    - 예: "정책", "지원금" 같이 너무 광범위한 질문
+   - **주의**: "이전", "아까", "처음" 같은 대화 참조는 GENERAL_CHAT으로 분류하세요
 
 **중요**: 반드시 JSON 형식으로만 답변하세요.
 
 응답 형식:
 {{
   "action": "SEARCH_POLICY",
-  "reason": "창업 지원금 관련 정책 검색 필요",
-  "keywords": ["창업", "지원금"]
+  "reason": "창업 지원금 관련 정책 검색 필요"
 }}
 
 답변:"""
-        return ChatPromptTemplate.from_template(template)
-    
-    def _create_prompt(self):
-        """프롬프트 템플릿 생성"""
-        template = """당신은 청년 정책 전문 상담사입니다.
-사용자의 질문에 대해 제공된 정책 정보를 바탕으로 친절하고 정확하게 답변하세요.
-
-📋 정책 정보:
-{context}
-
-❓ 사용자 질문:
-{question}
-
-💡 답변 가이드라인:
-1. 제공된 정책 정보만 사용하세요
-2. 정책명, 지원내용, 신청방법을 명확히 설명하세요
-3. 정보가 부족하면 "제공된 정보에는 없습니다"라고 말하세요
-4. 친근하고 격려하는 톤으로 작성하세요
-5. 필요시 추가 질문을 유도하세요
-6. 정책에 관련되지 않은 질문에는 답변하지 마세요
-7. 현재 날짜를 기준으로 최신 정보를 제공하세요
-
-답변:"""
-        
         return ChatPromptTemplate.from_template(template)
     
     def _create_self_rag_prompt(self):
@@ -322,6 +297,7 @@ class YouthPolicyRAG:
 1. 답변 내용이 위 정책 정보에 실제로 존재하는 정보에 기반하는지 확인하세요.
 2. 존재하지 않는 정책명을 새로 만들어내지 않았는지 확인하세요.
 3. 지원대상, 나이, 지역, 지원금액 등 주요 조건이 왜곡되지 않았는지 확인하세요.
+4. {answer}가 {question}에 정확히 답변하는지 확인하세요.
 
 반드시 아래 JSON 형식으로만 출력하세요:
 
@@ -344,7 +320,7 @@ class YouthPolicyRAG:
         """
         try:
             chain = self.self_rag_prompt | self.llm | StrOutputParser()
-            resp = chain.invoke({"context": context, "answer": answer})
+            resp = chain.invoke({"context": context, "answer": answer, "question": question})
             
             # JSON만 추출
             if "```json" in resp:
@@ -371,19 +347,6 @@ class YouthPolicyRAG:
             print(f"⚠️ Self-RAG 검증 실패: {e}")
             return answer
 
-    def _build_chain(self):
-        """RAG 체인 구성"""
-        chain = (
-            {
-                "context": RunnableLambda(self._retrieve_and_filter) | RunnableLambda(self._format_docs),
-                "question": RunnablePassthrough()
-            }
-            | self.prompt
-            | self.llm
-            | StrOutputParser()
-        )
-        return chain
-    
     def _retrieve_and_filter(self, question):
         """검색 + 메타데이터 필터링 (MultiQuery + Ensemble 사용)"""
         
@@ -475,6 +438,8 @@ class YouthPolicyRAG:
             region_match = True
             if self.user_region:
                 org_name = metadata.get('주관기관명', '')
+                registered_org = metadata.get('등록기관명', '')  # 실제 지역 정보
+                upper_org = metadata.get('상위등록기관명', '')  # 시/도 정보
                 additional_cond = metadata.get('추가자격조건', '')
                 reg_group = metadata.get('재공기관그룹', '')
                 
@@ -495,10 +460,10 @@ class YouthPolicyRAG:
                             user_sido = sido
                             break
                     
-                    # 시/도 매칭 확인
-                    if user_sido and user_sido in org_name:
+                    # 시/도 매칭 확인 (등록기관명과 상위등록기관명도 확인)
+                    if user_sido and (user_sido in org_name or user_sido in registered_org or user_sido in upper_org):
                         region_match = True
-                        print(f"  ✓ 시/도 매칭: {policy_name} (시/도: {user_sido}, 기관: {org_name})")
+                        print(f"  ✓ 시/도 매칭: {policy_name} (시/도: {user_sido}, 등록: {registered_org})")
                     else:
                         # 3순위: 구/군 단위 상세 매칭
                         region_clean = self.user_region.replace('특별시', '').replace('광역시', '').replace('특별자치시', '')
@@ -514,13 +479,14 @@ class YouthPolicyRAG:
                         
                         region_match = False
                         for token in user_region_tokens:
-                            if token in org_name or token in additional_cond:
+                            # 주관기관명, 등록기관명, 추가자격조건 모두 확인
+                            if token in org_name or token in registered_org or token in additional_cond:
                                 region_match = True
-                                print(f"  ✓ 상세 매칭: {policy_name} (토큰: {token}, 기관: {org_name})")
+                                print(f"  ✓ 상세 매칭: {policy_name} (토큰: {token}, 등록: {registered_org})")
                                 break
                         
                         if not region_match:
-                            print(f"  ✗ 제외: {policy_name} (기관: {org_name})")
+                            print(f"  ✗ 제외: {policy_name} (등록: {registered_org}, 주관: {org_name})")
             
             # 두 조건 모두 만족하면 포함
             if age_match and region_match:
@@ -573,7 +539,7 @@ class YouthPolicyRAG:
 
     def query(self, question: str):
         """
-        질문에 답변 (Router 적용)
+        질문에 답변 (Router + 대화 메모리 + Self-RAG 적용)
         
         Args:
             question: 사용자 질문
@@ -590,21 +556,36 @@ class YouthPolicyRAG:
         # 1단계: Router로 질문 분석
         routing_result = self.route_query(question)
         action = routing_result.get('action')
+        answer = ""
         
         # 2단계: Action에 따라 처리
         if action == "GENERAL_CHAT":
-            # 일반 대화 - 검색 없이 직접 응답
             print("💬 일반 대화 모드\n")
-            chat_prompt = ChatPromptTemplate.from_template(
-                "당신은 친근한 청년 정책 상담사입니다. 다음 질문에 간단히 답변하세요.\n\n질문: {question}\n\n답변:"
+            prompt = ChatPromptTemplate.from_template(
+                """당신은 친근한 청년 정책 상담사입니다.
+                아래는 지금까지의 대화 기록입니다.
+                
+                [대화 기록]
+                {chat_history}
+                
+                [사용자 질문]
+                {question}
+
+                답변 가이드:
+                1. 사용자가 "이전에 물어본 것", "아까 말한 정책" 등을 언급하면 대화 기록을 참조하세요.
+                2. 대화 기록에 정책명이나 구체적 정보가 있다면 그대로 인용하세요.
+                3. 정책 상세 정보가 필요하면 "다시 검색해드릴까요?"라고 물어보세요.
+                4. 일반적인 인사나 감사는 간단하고 따뜻하게 답변하세요.
+
+                답변:"""
             )
-            response = (chat_prompt | self.llm | StrOutputParser()).invoke({"question": question})
-            return response
+            chat_history_txt = self._format_chat_history()
+            answer = (prompt | self.llm | StrOutputParser()).invoke(
+                {"chat_history": chat_history_txt, "question": question})
         
         elif action == "REQUEST_INFO":
-            # 사용자 정보 요청
             print("📝 사용자 정보 필요\n")
-            return """더 정확한 정책을 추천해드리기 위해 정보가 필요합니다! 😊
+            answer = """더 정확한 정책을 추천해드리기 위해 정보가 필요합니다! 😊
 
 다음 정보를 알려주시겠어요?
 1. 나이: 만 몇 세이신가요?
@@ -613,9 +594,8 @@ class YouthPolicyRAG:
 정보를 입력하시면 맞춤형 정책을 찾아드리겠습니다!"""
         
         elif action == "CLARIFY":
-            # 질문 명확화 요청
             print("❓ 질문 명확화 필요\n")
-            return """질문을 좀 더 구체적으로 말씀해주시겠어요? 😊
+            answer = """질문을 좀 더 구체적으로 말씀해주시겠어요? 😊
 
 예를 들면:
 - "창업 지원금이 궁금해요"
@@ -625,10 +605,49 @@ class YouthPolicyRAG:
 구체적인 분야를 말씀해주시면 더 정확한 정책을 찾아드릴게요!"""
         
         else:  # SEARCH_POLICY
-            # 정책 검색 - RAG 체인 실행
             print("⏳ 정책 검색 중...\n")
-            response = self.rag_chain.invoke(question)
-            return response
+            # 1) 문서 검색
+            docs = self._retrieve_and_filter(question)
+            # 2) 컨텍스트 포매팅
+            context = self._format_docs(docs)
+            # 3) 대화 기록
+            chat_history_txt = self._format_chat_history()
+
+            # 4) 1차 답변 생성 (대화 기록 + 컨텍스트 같이 제공)
+            prompt = ChatPromptTemplate.from_template("""당신은 청년 정책 전문 상담사입니다.
+            아래는 지금까지의 대화 기록과, 검색된 정책 정보입니다.
+            
+            [대화 기록]
+            {chat_history}
+            
+            [정책 정보]
+            {context}
+
+            [사용자 질문]
+            {question}
+            답변 가이드라인:
+            1. 제공된 정책 정보만 사용하세요.
+            2. 정책명, 지원내용, 신청방법을 명확히 설명하세요.
+            3. 정보가 부족하면 "제공된 정보에는 없습니다"라고 말하세요.
+            4. 친근하고 격려하는 톤으로 작성하세요.
+            5. 필요시 추가 질문을 유도하세요.
+                                                      
+            답변:"""
+            )
+            raw_answer = (prompt | self.llm | StrOutputParser()).invoke(
+                {"chat_history": chat_history_txt,
+                 "context": context,
+                 "question": question})
+            
+            # 5) Self-RAG 검증
+            answer = self.self_rag_verify(question, raw_answer, context)
+        
+        # 3단계: 대화 메모리에 저장
+        if self.chat_history is not None and answer:
+            self.chat_history.append(HumanMessage(content=question))
+            self.chat_history.append(AIMessage(content=answer))
+        
+        return answer
     
     def set_user_info(self, age=None, region=None):
         """
@@ -690,94 +709,9 @@ class YouthPolicyRAG:
             print(f"⚠️ 라우팅 오류: {e}, 기본 검색으로 진행")
             return {
                 "action": "SEARCH_POLICY",
-                "reason": "라우팅 실패, 기본 검색",
-                "keywords": []
+                "reason": "라우팅 실패, 기본 검색"
             }
         
-    def advanced_query(self, question:str) -> str:
-        """대화 메모리 + Self-RAG 적용 고급 질의응답 함수.
-        기존 query()는 건드리지 않고, 이 메서드를 별도로 사용하면 됨."""
-        user_info = ""
-        if self.user_age or self.user_region:
-            user_info = f" (나이: {self.user_age}세, 지역: {self.user_region})"
-        print(f"\n🔍 [ADV]질문: {question}{user_info}")
-
-        # 1단계 : Router 사용 (기존 로직 재사용)
-        routing_result = self.route_query(question)
-        action = routing_result.get('action')
-        answer = ""
-
-        # 2단계 : Action에 따라 처리
-        if action == "GENERAL_CHAT":
-            print("💬 [ADV]일반 대화 모드\n")
-            prompt = ChatPromptTemplate.from_template(
-                """당신은 친근한 청년 정책 상담사입니다.
-                아래는 지금까지의 대화 기록입니다
-                
-                [대화 기록]
-                {chat_history}
-                [사용자 질문]
-                {question}
-
-                간단하고 따뜻하게 답변하세요.
-
-                답변:"""
-                )
-            chat_history_txt = self._format_chat_history()
-            answer = (prompt | self.llm | StrOutputParser()).invoke(
-                {"chat_history": chat_history_txt, "question": question})
-        elif action == "REQUEST_INFO":
-            print("📝 [ADV]사용자 정보 필요\n")
-            answer = """더 정확한 정책을 추천해드리기 위해 정보가 필요합니다! 😊
-            
-            다음 정보를 알려주시겠어요?
-            1. 나이: 만 몇 세이신가요?
-            2. 지역: 어디에 거주하시나요? (예: 서울특별시, 경기도 의정부시)
-            
-            정보를 입력하시면 맞춤형 정책을 찾아드리겠습니다!"""
-        else : # SEARCH_POLICY or 기타
-            print("⏳ [ADV]정책 검색 중...\n")
-            # 1) 문서 검색
-            docs = self._retrieve_and_filter(question)
-            # 2) 컨텍스트 포매팅
-            context = self._format_docs(docs)
-            # 3) 대화 기록
-            chat_history_txt = self._format_chat_history()
-
-            # 4) 1차 답변 생성 (대화 기록 + 컨텍스트 같이 제공)
-            prompt = ChatPromptTemplate.from_template("""당신은 청년 정책 전문 상답사입니다
-            아래는 지금까지의 대화 기록과, 검색된 정책 정보입니다.
-            
-            [대화 기록]
-            {chat_history}
-            
-            [정책 정보]
-            {context}
-
-            [사용자 질문]
-            {question}
-            답변 가이드라인:
-            1. 제공된 정책 정보만 사용하세요.
-            2. 정책명, 지원내용, 신청방법을 명확히 설명하세요.
-            3. 정보가 부족하면 "제공된 정보에는 없습니다"라고 말하세요.
-            4. 친근하고 격려하는 톤으로 작성하세요.
-            5. 필요시 추가 질문을 유도하세요.
-                                                      
-            답변:"""
-                    )
-            raw_answer = (prompt | self.llm | StrOutputParser()).invoke(                                                                                                                              
-                {"chat_history": chat_history_txt,
-                 "context": context,
-                 "question": question})
-            
-            # 5) Self-RAG 검증
-            answer = self.self_rag_verify(question, raw_answer, context)
-        # 3단계 : 대화 메모리에 저장
-        if self.chat_history is not None and answer:
-            self.chat_history.append(HumanMessage(content=question))
-            self.chat_history.append(AIMessage(content=answer))
-        return answer
-
     def interactive_mode(self):
         """대화형 모드"""
         print("\n" + "=" * 70)
@@ -814,7 +748,7 @@ class YouthPolicyRAG:
                 if not question:
                     continue
                 
-                # 답변 생성
+                # 답변 생성 (Self-RAG + 대화 메모리 적용)
                 answer = self.query(question)
                 print(f"\n🤖 답변:\n{answer}\n")
                 print("-" * 70)

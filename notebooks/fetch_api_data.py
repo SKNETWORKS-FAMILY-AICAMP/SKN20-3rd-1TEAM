@@ -106,7 +106,7 @@ def main():
     print("=" * 70)
     
     # API 호출
-    data = fetch_youth_policies(page_size=3000)
+    data = fetch_youth_policies(page_size=3550)
     
     if data:
         # JSON 저장
