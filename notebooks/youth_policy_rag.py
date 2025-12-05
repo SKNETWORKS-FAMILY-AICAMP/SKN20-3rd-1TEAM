@@ -1,6 +1,6 @@
 """
 청년 정책 RAG Pipeline
-단계별로 구축하는 고급 RAG 시스템
+Streamlit과 CLI 모두에서 사용 가능한 모듈
 """
 
 import os
@@ -19,6 +19,15 @@ from langchain_core.messages import HumanMessage, AIMessage
 # 환경 변수 로드
 load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+
+# Streamlit 환경에서는 print 출력을 최소화
+def safe_print(message, force=False):
+    """Streamlit에서는 print를 억제하고 필요한 경우만 출력"""
+    import sys
+    # Streamlit 환경 체크
+    if force or 'streamlit' not in sys.modules:
+        print(message)
 
 
 class SimpleEnsembleRetriever:
@@ -48,7 +57,7 @@ class SimpleEnsembleRetriever:
                     score = (len(docs) - i) * weight
                     all_docs.append((doc, score))
             except Exception as e:
-                print(f"⚠️ Retriever 오류: {e}")
+                safe_print(f"⚠️ Retriever 오류: {e}")
                 continue
         
         # 점수 기준 정렬
@@ -114,14 +123,14 @@ class MultiQueryGenerator:
             # 원본 질문을 항상 첫 번째로 포함
             queries = [question] + expanded_queries
             
-            print(f"🔄 MultiQuery 생성: {len(queries)}개 (원본 포함)")
+            safe_print(f"🔄 MultiQuery 생성: {len(queries)}개 (원본 포함)")
             for i, q in enumerate(queries, 1):
-                print(f"  {i}. {q}")
+                safe_print(f"  {i}. {q}")
             
             return queries
             
         except Exception as e:
-            print(f"⚠️ MultiQuery 생성 실패: {e}, 원본 질문만 사용")
+            safe_print(f"⚠️ MultiQuery 생성 실패: {e}, 원본 질문만 사용")
             return [question]
 
 
@@ -136,7 +145,7 @@ class YouthPolicyRAG:
             db_path: ChromaDB 경로
             use_multi_query: MultiQuery 사용 여부 (기본: True)
         """
-        print("🚀 RAG Pipeline 초기화 중...")
+        safe_print("🚀 RAG Pipeline 초기화 중...")
         
         # LLM 초기화
         self.llm = ChatOpenAI(
@@ -180,9 +189,10 @@ class YouthPolicyRAG:
         # MultiQuery Generator 초기화
         self.multi_query_gen = MultiQueryGenerator(self.llm)
         
-        # 사용자 정보 (나이, 지역)
+        # 사용자 정보 (나이, 지역, 학력)
         self.user_age = None
         self.user_region = None
+        self.user_education = None
         
         # MultiQuery 사용 여부
         self.use_multi_query = use_multi_query
@@ -194,11 +204,11 @@ class YouthPolicyRAG:
         self.self_rag_prompt = self._create_self_rag_prompt()  # Self-RAG 프롬프트
         
         
-        print("✅ RAG Pipeline 초기화 완료!")
+        safe_print("✅ RAG Pipeline 초기화 완료!")
     
     def _load_documents(self):
         """ChromaDB에서 문서 로딩 (한 번만 수행)"""
-        print("📄 문서 로딩 중...")
+        safe_print("📄 문서 로딩 중...")
         all_data = self.collection.get()
         
         documents = []
@@ -208,33 +218,33 @@ class YouthPolicyRAG:
                 metadata=metadata
             ))
         
-        print(f"✅ 문서 로딩 완료 (문서 수: {len(documents)}개)")
+        safe_print(f"✅ 문서 로딩 완료 (문서 수: {len(documents)}개)")
         return documents
     
     def _init_bm25_retriever(self):
         """BM25 Retriever 초기화 (키워드 기반 검색)"""
-        print("📚 BM25 Retriever 초기화 중...")
+        safe_print("📚 BM25 Retriever 초기화 중...")
         self.bm25_retriever = BM25Retriever.from_documents(self.documents)
-        self.bm25_retriever.k = 10  # 상위 10개 검색
-        print("✅ BM25 Retriever 초기화 완료")
+        self.bm25_retriever.k = 30  # 상위 30개 검색 (다양성 확보)
+        safe_print("✅ BM25 Retriever 초기화 완료")
     
     def _init_tfidf_retriever(self):
         """TF-IDF Retriever 초기화 (통계 기반 검색)"""
-        print("📊 TF-IDF Retriever 초기화 중...")
+        safe_print("📊 TF-IDF Retriever 초기화 중...")
         self.tfidf_retriever = TFIDFRetriever.from_documents(self.documents)
-        self.tfidf_retriever.k = 10  # 상위 10개 검색
-        print("✅ TF-IDF Retriever 초기화 완료")
+        self.tfidf_retriever.k = 30  # 상위 30개 검색 (다양성 확보)
+        safe_print("✅ TF-IDF Retriever 초기화 완료")
     
     def _init_ensemble_retriever(self):
         """Ensemble Retriever 초기화 (Dense + BM25 + TF-IDF 3-way hybrid)"""
-        print("🔗 Ensemble Retriever 생성 중 (3-way hybrid)...")
+        safe_print("🔗 Ensemble Retriever 생성 중 (3-way hybrid)...")
         
         # Dense Vector Retriever (의미 기반) - 유사도 점수 포함
         vector_retriever = self.vectorstore.as_retriever(
             search_type="similarity_score_threshold",
             search_kwargs={
-                "k": 10,
-                "score_threshold": 0.3  # 유사도 30% 이상만 반환
+                "k": 30,  # 상위 30개 검색 (다양성 확보)
+                "score_threshold": 0.0  # 임계값 낮춤 (BM25/TF-IDF와 함께 사용되므로 낮은 점수도 허용)
             }
         )
         
@@ -243,8 +253,8 @@ class YouthPolicyRAG:
             retrievers=[vector_retriever, self.bm25_retriever, self.tfidf_retriever],
             weights=[0.5, 0.3, 0.2]  # Dense 50%, BM25 30%, TF-IDF 20%
         )
-        print("✅ Ensemble Retriever 생성 완료 (Dense + BM25 + TF-IDF)")
-        print("   가중치: Dense 50% | BM25 30% | TF-IDF 20%")
+        safe_print("✅ Ensemble Retriever 생성 완료 (Dense + BM25 + TF-IDF)")
+        safe_print("   가중치: Dense 50% | BM25 30% | TF-IDF 20%")
     
     def _create_router_prompt(self):
         """Router 프롬프트 생성"""
@@ -334,18 +344,61 @@ class YouthPolicyRAG:
             suggested_fix = result.get("suggested_fix", "")
 
             if is_grounded:
-                print("✅ Self-RAG: 근거 기반 답변으로 판단")
+                safe_print("✅ Self-RAG: 근거 기반 답변으로 판단")
                 return answer
             else:
-                print(f"⚠️ Self-RAG: 답변에 문제 발견 - {issues}")
+                safe_print(f"⚠️ Self-RAG: 답변에 문제 발견 - {issues}")
                 if suggested_fix:
-                    print(f"🔧 Self-RAG: 수정된 답변 사용")
+                    safe_print(f"🔧 Self-RAG: 수정된 답변 사용")
                     return suggested_fix
             
             return answer
         except Exception as e:
-            print(f"⚠️ Self-RAG 검증 실패: {e}")
+            safe_print(f"⚠️ Self-RAG 검증 실패: {e}")
             return answer
+    
+    def _filter_by_category(self, question: str, docs: list):
+        """질문에서 중분류 키워드를 추출하여 관련 정책만 필터링"""
+        # 중분류 키워드 매핑 (실제 데이터 기반)
+        category_keywords = {
+            "취업": ["취업", "일자리", "채용", "구직", "면접", "입사", "재직", "고용"],
+            "창업": ["창업", "스타트업", "사업", "창업자", "기업가", "자영업", "개업"],
+            "전월세 및 주거급여 지원": ["주거", "주택", "전세", "월세", "임대", "보증금", "집", "거주"],
+            "주택 및 거주지": ["주택", "거주", "집", "주거지"],
+            "기숙사": ["기숙사", "학생숙소", "공동거주"],
+            "미래역량강화": ["교육", "훈련", "학습", "강의", "수강", "자격증", "역량", "스킬"],
+            "교육비지원": ["교육비", "학비", "등록금", "장학금", "수강료"],
+            "취약계층 및 금융지원": ["대출", "금융", "이자", "보증", "신용", "저소득", "취약계층"],
+            "건강": ["건강", "의료", "치료", "검진", "병원"],
+            "문화활동": ["문화", "여행", "예술", "공연", "체험", "활동"],
+            "청년참여": ["참여", "청년활동", "봉사", "위원회"],
+            "정책인프라구축": ["인프라", "시스템", "플랫폼", "센터"]
+        }
+        
+        # 질문에서 카테고리 추출
+        matched_categories = []
+        question_lower = question.lower()
+        for category, keywords in category_keywords.items():
+            if any(keyword in question_lower for keyword in keywords):
+                matched_categories.append(category)
+        
+        # 카테고리 매칭이 없으면 필터링하지 않음 (모든 결과 반환)
+        if not matched_categories:
+            safe_print("  ℹ️ 특정 분야 키워드 없음, 모든 분야 검색")
+            return docs
+        
+        safe_print(f"  🎯 매칭된 분야: {', '.join(matched_categories)}")
+        
+        # 중분류 필터링
+        filtered = []
+        for doc in docs:
+            category = doc.metadata.get('중분류', '')
+            # 복수 중분류 처리 (예: "취업,미래역량강화")
+            if any(cat in category for cat in matched_categories):
+                filtered.append(doc)
+        
+        # 필터링 결과가 없으면 원본 반환 (너무 엄격하지 않게)
+        return filtered if filtered else docs
 
     def _retrieve_and_filter(self, question):
         """검색 + 메타데이터 필터링 (MultiQuery + Ensemble 사용)"""
@@ -373,10 +426,24 @@ class YouthPolicyRAG:
                         all_docs.append(doc)
                         
             except Exception as e:
-                print(f"⚠️ 쿼리 '{query}' 검색 오류: {e}")
+                safe_print(f"⚠️ 쿼리 '{query}' 검색 오류: {e}")
                 continue
         
-        print(f"🔍 총 검색 결과: {len(all_docs)}개 (중복 제거)")
+        safe_print(f"🔍 총 검색 결과: {len(all_docs)}개 (중복 제거)")
+        
+        # 검색된 정책 목록 출력 (디버깅용)
+        if all_docs:
+            safe_print("📋 검색된 정책 목록:")
+            for i, doc in enumerate(all_docs[:10], 1):
+                policy_name = doc.metadata.get('정책명', 'N/A')
+                category = doc.metadata.get('중분류', 'N/A')
+                safe_print(f"  {i}. {policy_name} ({category})")
+        
+        # 질문에서 중분류 키워드 추출 후 필터링
+        category_filtered_docs = self._filter_by_category(question, all_docs)
+        if category_filtered_docs:
+            safe_print(f"✅ 중분류 필터링 후: {len(category_filtered_docs)}개")
+            all_docs = category_filtered_docs
         
         # 현재 날짜 기준으로 종료된 정책 필터링
         current_date = datetime.now()
@@ -401,7 +468,7 @@ class YouthPolicyRAG:
                     if end_date >= current_date:
                         active_docs.append(doc)
                     else:
-                        print(f"  ✕ 종료된 정책: {policy_name} (종료일: {end_date_str})")
+                        safe_print(f"  ✕ 종료된 정책: {policy_name} (종료일: {end_date_str})")
                 else:
                     # 파싱 실패 시 포함
                     active_docs.append(doc)
@@ -409,13 +476,13 @@ class YouthPolicyRAG:
                 # 예외 발생 시 포함
                 active_docs.append(doc)
         
-        print(f"✅ 기간 필터링 후: {len(active_docs)}개 (종료된 정책 제외)")
+        safe_print(f"✅ 기간 필터링 후: {len(active_docs)}개 (종료된 정책 제외)")
         
-        # 사용자 정보가 없으면 기간 필터링만 적용하고 반환
-        if not (self.user_age or self.user_region):
-            return active_docs[:5]
+        # 사용자 정보가 없으면 기간 필터링만 적용하고 더 많은 결과 반환
+        if not (self.user_age or self.user_region or self.user_education):
+            return active_docs[:10]  # 5개 → 10개로 증가 (다양성 확보)
         
-        # 나이/지역 필터링 시작
+        # 나이/지역/학력 필터링 시작
         filtered_docs = []
         for doc in active_docs:
             metadata = doc.metadata
@@ -434,6 +501,42 @@ class YouthPolicyRAG:
                 except:
                     pass
             
+            # 학력 필터링 (학력요건 필드 확인)
+            education_match = True
+            if self.user_education:
+                edu_requirement = metadata.get('학력요건', '')
+                
+                # "제한없음", "기타" 또는 빈 값이면 모두 통과
+                if not edu_requirement or '제한없음' in edu_requirement or '기타' in edu_requirement:
+                    education_match = True
+                else:
+                    # 사용자 학력에 따른 매칭 키워드
+                    user_edu_match = False
+                    
+                    if "중학교" in self.user_education:
+                        # 중학교는 중학 이상만 매칭
+                        user_edu_match = any(kw in edu_requirement for kw in ["중학", "중졸"])
+                    
+                    elif "고등학교" in self.user_education:
+                        # 고등학교는 고등학교 이상 (대학 미만)
+                        user_edu_match = any(kw in edu_requirement for kw in ["고등", "고졸", "고교"])
+                        # 대학 요건이 있으면 불통과
+                        if any(kw in edu_requirement for kw in ["대학", "학사", "석", "박사"]):
+                            user_edu_match = False
+                    
+                    elif "대학교" in self.user_education:
+                        # 대학교 재학/졸업은 대학 관련 모두 매칭
+                        user_edu_match = any(kw in edu_requirement for kw in ["대학", "학사", "재학", "졸업"])
+                        # 대학원만 요구하면 불통과
+                        if ("석" in edu_requirement or "박사" in edu_requirement) and "대학" not in edu_requirement:
+                            user_edu_match = False
+                    
+                    elif "대학원" in self.user_education:
+                        # 대학원은 모든 학력 요건 통과 (최고 학력)
+                        user_edu_match = True
+                    
+                    education_match = user_edu_match
+            
             # 지역 필터링 (계층적 매칭: 전국 → 시/도 → 시/군/구)
             region_match = True
             if self.user_region:
@@ -448,7 +551,7 @@ class YouthPolicyRAG:
                 # 1순위: 전국 정책은 항상 포함
                 if '중앙부처' in reg_group or '전국' in org_name:
                     region_match = True
-                    print(f"  ✓ 전국 정책: {policy_name} (기관: {org_name})")
+                    safe_print(f"  ✓ 전국 정책: {policy_name} (기관: {org_name})")
                 else:
                     # 2순위: 시/도 단위 매칭 (구/군 입력 시에도 시/도 정책 포함)
                     sido_list = ['서울', '경기', '인천', '부산', '대구', '광주', '대전', '울산', '세종',
@@ -463,49 +566,49 @@ class YouthPolicyRAG:
                     # 시/도 매칭 확인 (등록기관명과 상위등록기관명도 확인)
                     if user_sido and (user_sido in org_name or user_sido in registered_org or user_sido in upper_org):
                         region_match = True
-                        print(f"  ✓ 시/도 매칭: {policy_name} (시/도: {user_sido}, 등록: {registered_org})")
+                        safe_print(f"  ✓ 시/도 매칭: {policy_name} (시/도: {user_sido}, 등록: {registered_org})")
                     else:
                         # 3순위: 구/군 단위 상세 매칭
-                        region_clean = self.user_region.replace('특별시', '').replace('광역시', '').replace('특별자치시', '')
-                        region_clean = region_clean.replace('도', '').replace('시', '').replace('군', '').replace('구', '').strip()
-                        
+                        # user_region 형식: "서울특별시 구로구" 또는 "경기도 의정부시"
                         user_region_tokens = []
                         if user_sido:
                             user_region_tokens.append(user_sido)
                         
-                        for token in region_clean.split():
-                            if token and token not in user_region_tokens:
-                                user_region_tokens.append(token)
+                        # 공백으로 분리해서 마지막 토큰이 구/군/시
+                        region_parts = self.user_region.split()
+                        if len(region_parts) > 1:
+                            district = region_parts[-1]  # 마지막 부분이 구/군/시
+                            user_region_tokens.append(district)
                         
                         region_match = False
                         for token in user_region_tokens:
                             # 주관기관명, 등록기관명, 추가자격조건 모두 확인
                             if token in org_name or token in registered_org or token in additional_cond:
                                 region_match = True
-                                print(f"  ✓ 상세 매칭: {policy_name} (토큰: {token}, 등록: {registered_org})")
+                                safe_print(f"  ✓ 상세 매칭: {policy_name} (토큰: {token}, 등록: {registered_org})")
                                 break
                         
                         if not region_match:
-                            print(f"  ✗ 제외: {policy_name} (등록: {registered_org}, 주관: {org_name})")
+                            safe_print(f"  ✗ 제외: {policy_name} (등록: {registered_org}, 주관: {org_name})")
             
-            # 두 조건 모두 만족하면 포함
-            if age_match and region_match:
+            # 세 조건 모두 만족하면 포함
+            if age_match and region_match and education_match:
                 filtered_docs.append(doc)
         
-        print(f"✅ 필터링 후: {len(filtered_docs)}개")
+        safe_print(f"✅ 필터링 후: {len(filtered_docs)}개")
         
         # 결과가 너무 적으면 전국 정책만이라도 반환
-        if len(filtered_docs) < 3:
-            print("⚠️ 필터링 결과 부족, 전국 정책 추가 검색")
+        if len(filtered_docs) < 5:
+            safe_print("⚠️ 필터링 결과 부족, 전국 정책 추가 검색")
             for doc in active_docs:
-                if len(filtered_docs) >= 5:
+                if len(filtered_docs) >= 10:
                     break
                 metadata = doc.metadata
                 reg_group = metadata.get('재공기관그룹', '')
                 if '중앙부처' in reg_group and doc not in filtered_docs:
                     filtered_docs.append(doc)
         
-        return filtered_docs[:5]
+        return filtered_docs[:10]  # 상위 10개 반환 (더 다양한 선택지)
     
     def _format_docs(self, docs):
         """문서 포맷팅"""
@@ -515,14 +618,48 @@ class YouthPolicyRAG:
         formatted = []
         for i, doc in enumerate(docs, 1):
             metadata = doc.metadata
+            
+            # 지원금액 표시
+            min_amount = metadata.get('최소지원금액', '0')
+            max_amount = metadata.get('최대지원금액', '0')
+            if min_amount == '0' and max_amount == '0':
+                amount_str = "정보 없음"
+            elif min_amount == max_amount:
+                amount_str = f"{int(min_amount):,}원"
+            else:
+                amount_str = f"{int(min_amount):,}원 ~ {int(max_amount):,}원"
+            
+            # 신청기간 표시
+            apply_period = metadata.get('신청기간', '')
+            if apply_period:
+                apply_str = apply_period.replace('~', ' ~ ')
+            else:
+                apply_str = "상시 신청"
+            
+            # 학력요건 표시
+            edu_req = metadata.get('학력요건', '제한없음')
+            
             formatted.append(f"""
-[정책 {i}]
-정책명: {metadata.get('정책명', 'N/A')}
-분야: {metadata.get('대분류', 'N/A')} > {metadata.get('중분류', 'N/A')}
-담당기관: {metadata.get('주관기관명', 'N/A')}
-연령: {metadata.get('지원최소연령', 'N/A')}세 ~ {metadata.get('지원최대연령', 'N/A')}세
-지원금액: {metadata.get('최소지원금액', '0')}원 ~ {metadata.get('최대지원금액', '0')}원
-내용: {doc.page_content[:500]}...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 정책 {i}. {metadata.get('정책명', 'N/A')}
+
+🏢 담당기관: {metadata.get('주관기관명', 'N/A')}
+📂 분야: {metadata.get('대분류', 'N/A')} > {metadata.get('중분류', 'N/A')}
+
+👥 지원대상
+  • 연령: {metadata.get('지원최소연령', 'N/A')}세 ~ {metadata.get('지원최대연령', 'N/A')}세
+  • 학력: {edu_req}
+  • 거주지: {metadata.get('등록기관명', '전국')}
+
+💰 지원내용
+  • 지원금액: {amount_str}
+  • 신청기간: {apply_str}
+
+📝 상세설명
+{metadata.get('지원내용', doc.page_content[:300])}
+
+🔗 참고링크: {metadata.get('참고URL1', '정보 없음')}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """)
         return "\n".join(formatted)
     
@@ -551,7 +688,7 @@ class YouthPolicyRAG:
         if self.user_age or self.user_region:
             user_info = f" (나이: {self.user_age}세, 지역: {self.user_region})"
         
-        print(f"\n🔍 질문: {question}{user_info}")
+        safe_print(f"\n🔍 질문: {question}{user_info}")
         
         # 1단계: Router로 질문 분석
         routing_result = self.route_query(question)
@@ -560,7 +697,7 @@ class YouthPolicyRAG:
         
         # 2단계: Action에 따라 처리
         if action == "GENERAL_CHAT":
-            print("💬 일반 대화 모드\n")
+            safe_print("💬 일반 대화 모드\n")
             prompt = ChatPromptTemplate.from_template(
                 """당신은 친근한 청년 정책 상담사입니다.
                 아래는 지금까지의 대화 기록입니다.
@@ -584,7 +721,7 @@ class YouthPolicyRAG:
                 {"chat_history": chat_history_txt, "question": question})
         
         elif action == "REQUEST_INFO":
-            print("📝 사용자 정보 필요\n")
+            safe_print("📋 사용자 정보 필요\n")
             answer = """더 정확한 정책을 추천해드리기 위해 정보가 필요합니다! 😊
 
 다음 정보를 알려주시겠어요?
@@ -594,7 +731,7 @@ class YouthPolicyRAG:
 정보를 입력하시면 맞춤형 정책을 찾아드리겠습니다!"""
         
         elif action == "CLARIFY":
-            print("❓ 질문 명확화 필요\n")
+            safe_print("❓ 질문 명확화 필요\n")
             answer = """질문을 좀 더 구체적으로 말씀해주시겠어요? 😊
 
 예를 들면:
@@ -605,7 +742,7 @@ class YouthPolicyRAG:
 구체적인 분야를 말씀해주시면 더 정확한 정책을 찾아드릴게요!"""
         
         else:  # SEARCH_POLICY
-            print("⏳ 정책 검색 중...\n")
+            safe_print("⏳ 정책 검색 중...\n")
             # 1) 문서 검색
             docs = self._retrieve_and_filter(question)
             # 2) 컨텍스트 포매팅
@@ -625,12 +762,22 @@ class YouthPolicyRAG:
 
             [사용자 질문]
             {question}
+            
             답변 가이드라인:
-            1. 제공된 정책 정보만 사용하세요.
-            2. 정책명, 지원내용, 신청방법을 명확히 설명하세요.
-            3. 정보가 부족하면 "제공된 정보에는 없습니다"라고 말하세요.
-            4. 친근하고 격려하는 톤으로 작성하세요.
-            5. 필요시 추가 질문을 유도하세요.
+            1. **검색된 모든 정책을 빠짐없이 소개**하세요.
+            2. 각 정책마다 다음 정보를 **원본 그대로** 포함하세요:
+               - 정책명
+               - 담당기관
+               - 지원대상 (연령, 학력, 거주지)
+               - 지원내용 (구체적인 금액, 지원 방식)
+               - 신청기간
+               - 참고링크
+            3. 정보를 요약하거나 생략하지 마세요. **제공된 정보를 그대로 전달**하세요.
+            4. 정책 정보에 없는 내용은 추가하지 마세요.
+            5. 친근하고 격려하는 톤으로 작성하되, **정보는 정확하고 상세하게** 제공하세요.
+            6. 각 정책 사이에 구분선(━━━)을 넣어 읽기 쉽게 하세요.
+            7. 연령이 0세 ~ 0세인 경우 "제한없음"으로 표현하세요.
+            8. 연령이 n세 ~ 0세인 경우 "n세 이상"으로 표현하세요.
                                                       
             답변:"""
             )
@@ -649,26 +796,30 @@ class YouthPolicyRAG:
         
         return answer
     
-    def set_user_info(self, age=None, region=None):
+    def set_user_info(self, age=None, region=None, education=None):
         """
         사용자 정보 설정
         
         Args:
             age: 나이
             region: 지역 (예: "경기도 의정부시")
+            education: 학력 (예: "대학교 재학", "고등학교 졸업")
         """
         self.user_age = age
         self.user_region = region
+        self.user_education = education
         
         info = []
         if age:
             info.append(f"나이 {age}세")
         if region:
             info.append(f"지역 {region}")
+        if education:
+            info.append(f"학력 {education}")
         
         if info:
-            print(f"✅ 사용자 정보 설정: {', '.join(info)}")
-            print(f"   → 전국/중앙부처 정책 + {region} 정책이 함께 검색됩니다.")
+            safe_print(f"✅ 사용자 정보 설정: {', '.join(info)}", force=True)
+            safe_print(f"   → 전구/중앙부처 정책 + {region} 정책이 함께 검색됩니다.", force=True)
     
     def route_query(self, question: str):
         """
@@ -697,16 +848,16 @@ class YouthPolicyRAG:
             # REQUEST_INFO인 경우, 사용자 정보가 이미 있으면 SEARCH_POLICY로 변경
             if result.get('action') == 'REQUEST_INFO':
                 if self.user_age or self.user_region:
-                    print(f"ℹ️  사용자 정보 이미 있음 (나이: {self.user_age}, 지역: {self.user_region})")
+                    safe_print(f"ℹ️  사용자 정보 이미 있음 (나이: {self.user_age}, 지역: {self.user_region})")
                     result['action'] = 'SEARCH_POLICY'
                     result['reason'] = '사용자 정보 있음, 정책 검색 진행'
             
-            print(f"🎯 라우팅 결과: {result['action']} - {result.get('reason', '')}")
+            safe_print(f"🎯 라우팅 결과: {result['action']} - {result.get('reason', '')}")
             
             return result
             
         except Exception as e:
-            print(f"⚠️ 라우팅 오류: {e}, 기본 검색으로 진행")
+            safe_print(f"⚠️ 라우팅 오류: {e}, 기본 검색으로 진행")
             return {
                 "action": "SEARCH_POLICY",
                 "reason": "라우팅 실패, 기본 검색"
