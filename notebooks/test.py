@@ -7,9 +7,10 @@ import os
 from dotenv import load_dotenv
 import chromadb
 import json
+from datetime import datetime
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain_community.retrievers import BM25Retriever
+from langchain_community.retrievers import BM25Retriever, TFIDFRetriever
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
@@ -21,46 +22,48 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 
 class SimpleEnsembleRetriever:
-    """간단한 Ensemble Retriever 구현 (Vector + BM25)"""
+    # 앙상블 기반 검색기를 진짜 만들고 싶었는데 이게 import 가 안되서 직접 구현한 버전으로 쓸수 밖에 없었습니다..
+    """3-way Ensemble Retriever 구현 (Dense + BM25 + TF-IDF)"""
     
-    def __init__(self, vector_retriever, bm25_retriever, embeddings):
-        self.vector_retriever = vector_retriever
-        self.bm25_retriever = bm25_retriever
-        self.embeddings = embeddings
+    def __init__(self, retrievers, weights):
+        """
+        Args:
+            retrievers: List of retrievers [vector, bm25, tfidf]
+            weights: List of weights [0.5, 0.3, 0.2]
+        """
+        self.retrievers = retrievers
+        self.weights = weights
     
     def get_relevant_documents(self, query):
-        """Vector와 BM25 결과를 결합"""
-        # Vector 검색 (invoke 메서드 사용)
-        try:
-            vector_docs = self.vector_retriever.invoke(query)
-        except:
-            vector_docs = self.vector_retriever.get_relevant_documents(query)
+        """각 retriever에서 문서를 가져와 가중치 기반으로 결합"""
+        all_docs = []
         
-        # BM25 검색
-        try:
-            bm25_docs = self.bm25_retriever.invoke(query)
-        except:
-            bm25_docs = self.bm25_retriever.get_relevant_documents(query)
+        # 각 retriever에서 검색
+        for retriever, weight in zip(self.retrievers, self.weights):
+            try:
+                docs = retriever.invoke(query) if hasattr(retriever, 'invoke') else retriever.get_relevant_documents(query)
+                # 가중치 적용 (점수가 있으면 곱하기, 없으면 순위 기반)
+                for i, doc in enumerate(docs):
+                    # 간단한 점수 부여: (전체 개수 - 순위) * 가중치
+                    score = (len(docs) - i) * weight
+                    all_docs.append((doc, score))
+            except Exception as e:
+                print(f"⚠️ Retriever 오류: {e}")
+                continue
         
-        # 결합 (중복 제거)
+        # 점수 기준 정렬
+        all_docs.sort(key=lambda x: x[1], reverse=True)
+        
+        # 중복 제거
         seen_ids = set()
-        combined_docs = []
-        
-        # Vector 결과 먼저 (50%)
-        for doc in vector_docs[:5]:
-            doc_id = doc.page_content[:100]  # 내용 앞부분으로 ID 대체
-            if doc_id not in seen_ids:
-                seen_ids.add(doc_id)
-                combined_docs.append(doc)
-        
-        # BM25 결과 추가 (50%)
-        for doc in bm25_docs[:5]:
+        unique_docs = []
+        for doc, score in all_docs:
             doc_id = doc.page_content[:100]
             if doc_id not in seen_ids:
                 seen_ids.add(doc_id)
-                combined_docs.append(doc)
+                unique_docs.append(doc)
         
-        return combined_docs[:10]  # 상위 10개
+        return unique_docs[:10]  # 상위 10개
 
 
 class MultiQueryGenerator:
@@ -158,10 +161,16 @@ class YouthPolicyRAG:
         chroma_client = chromadb.PersistentClient(path=full_db_path)
         self.collection = chroma_client.get_collection(name="youth_policies")
         
+        # 문서 로딩 (한 번만)
+        self.documents = self._load_documents()
+        
         # BM25 Retriever 초기화 (키워드 기반 검색)
         self._init_bm25_retriever()
         
-        # Ensemble Retriever 생성 (Vector + BM25)
+        # TF-IDF Retriever 초기화 (통계 기반 검색)
+        self._init_tfidf_retriever()
+        
+        # Ensemble Retriever 생성 (Dense + BM25 + TF-IDF)
         self._init_ensemble_retriever()
         
         # MultiQuery Generator 초기화
@@ -174,12 +183,6 @@ class YouthPolicyRAG:
         # MultiQuery 사용 여부 (기본: True)
         self.use_multi_query = True
         
-        # Retriever 생성 (기본)
-        self.retriever = self.vectorstore.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 5}
-        )
-        
         # 프롬프트 템플릿
         self.prompt = self._create_prompt()
         
@@ -191,14 +194,11 @@ class YouthPolicyRAG:
         
         print("✅ RAG Pipeline 초기화 완료!")
     
-    def _init_bm25_retriever(self):
-        """BM25 Retriever 초기화 (키워드 기반 검색)"""
-        print("📚 BM25 Retriever 초기화 중...")
-        
-        # ChromaDB에서 모든 문서 가져오기
+    def _load_documents(self):
+        """ChromaDB에서 문서 로딩 (한 번만 수행)"""
+        print("📄 문서 로딩 중...")
         all_data = self.collection.get()
         
-        # Document 객체로 변환
         documents = []
         for doc_text, metadata in zip(all_data['documents'], all_data['metadatas']):
             documents.append(Document(
@@ -206,29 +206,43 @@ class YouthPolicyRAG:
                 metadata=metadata
             ))
         
-        # BM25 Retriever 생성
-        self.bm25_retriever = BM25Retriever.from_documents(documents)
+        print(f"✅ 문서 로딩 완료 (문서 수: {len(documents)}개)")
+        return documents
+    
+    def _init_bm25_retriever(self):
+        """BM25 Retriever 초기화 (키워드 기반 검색)"""
+        print("📚 BM25 Retriever 초기화 중...")
+        self.bm25_retriever = BM25Retriever.from_documents(self.documents)
         self.bm25_retriever.k = 10  # 상위 10개 검색
-        
-        print(f"✅ BM25 Retriever 초기화 완료 (문서 수: {len(documents)}개)")
+        print("✅ BM25 Retriever 초기화 완료")
+    
+    def _init_tfidf_retriever(self):
+        """TF-IDF Retriever 초기화 (통계 기반 검색)"""
+        print("📊 TF-IDF Retriever 초기화 중...")
+        self.tfidf_retriever = TFIDFRetriever.from_documents(self.documents)
+        self.tfidf_retriever.k = 10  # 상위 10개 검색
+        print("✅ TF-IDF Retriever 초기화 완료")
     
     def _init_ensemble_retriever(self):
-        """Ensemble Retriever 초기화 (Vector + BM25)"""
-        print("🔗 Ensemble Retriever 생성 중...")
+        """Ensemble Retriever 초기화 (Dense + BM25 + TF-IDF 3-way hybrid)"""
+        print("🔗 Ensemble Retriever 생성 중 (3-way hybrid)...")
         
-        # Vector Retriever (의미 기반)
+        # Dense Vector Retriever (의미 기반) - 유사도 점수 포함
         vector_retriever = self.vectorstore.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": 10}
+            search_type="similarity_score_threshold",
+            search_kwargs={
+                "k": 10,
+                "score_threshold": 0.3  # 유사도 30% 이상만 반환
+            }
         )
         
-        # 간단한 Ensemble 구현 (직접 구현)
+        # 3-way Hybrid: Dense + BM25 + TF-IDF (직접 구현)
         self.ensemble_retriever = SimpleEnsembleRetriever(
-            vector_retriever=vector_retriever,
-            bm25_retriever=self.bm25_retriever,
-            embeddings=self.embeddings
+            retrievers=[vector_retriever, self.bm25_retriever, self.tfidf_retriever],
+            weights=[0.5, 0.3, 0.2]  # Dense 50%, BM25 30%, TF-IDF 20%
         )
-        print("✅ Ensemble Retriever 생성 완료 (Vector + BM25)")
+        print("✅ Ensemble Retriever 생성 완료 (Dense + BM25 + TF-IDF)")
+        print("   가중치: Dense 50% | BM25 30% | TF-IDF 20%")
     
     def _create_router_prompt(self):
         """Router 프롬프트 생성"""
@@ -283,6 +297,8 @@ class YouthPolicyRAG:
 3. 정보가 부족하면 "제공된 정보에는 없습니다"라고 말하세요
 4. 친근하고 격려하는 톤으로 작성하세요
 5. 필요시 추가 질문을 유도하세요
+6. 정책에 관련되지 않은 질문에는 답변하지 마세요
+7. 현재 날짜를 기준으로 최신 정보를 제공하세요
 
 답변:"""
         
@@ -332,13 +348,46 @@ class YouthPolicyRAG:
         
         print(f"🔍 총 검색 결과: {len(all_docs)}개 (중복 제거)")
         
-        # 사용자 정보가 없으면 그대로 반환
-        if not (self.user_age or self.user_region):
-            return all_docs[:5]
+        # 현재 날짜 기준으로 종료된 정책 필터링
+        current_date = datetime.now()
+        active_docs = []
         
-        # 필터링 시작
-        filtered_docs = []
         for doc in all_docs:
+            metadata = doc.metadata
+            policy_name = metadata.get('정책명', 'N/A')
+            end_date_str = metadata.get('사업종료일', '')
+            
+            # 종료일이 없으면 포함 (상시 운영)
+            if not end_date_str or end_date_str == '0':
+                active_docs.append(doc)
+                continue
+            
+            # 종료일 파싱 (YYYYMMDD 형식)
+            try:
+                if len(end_date_str) == 8 and end_date_str.isdigit():
+                    end_date = datetime.strptime(end_date_str, '%Y%m%d')
+                    
+                    # 종료되지 않은 정책만 포함
+                    if end_date >= current_date:
+                        active_docs.append(doc)
+                    else:
+                        print(f"  ✕ 종료된 정책: {policy_name} (종료일: {end_date_str})")
+                else:
+                    # 파싱 실패 시 포함
+                    active_docs.append(doc)
+            except:
+                # 예외 발생 시 포함
+                active_docs.append(doc)
+        
+        print(f"✅ 기간 필터링 후: {len(active_docs)}개 (종료된 정책 제외)")
+        
+        # 사용자 정보가 없으면 기간 필터링만 적용하고 반환
+        if not (self.user_age or self.user_region):
+            return active_docs[:5]
+        
+        # 나이/지역 필터링 시작
+        filtered_docs = []
+        for doc in active_docs:
             metadata = doc.metadata
             
             # 나이 필터링
@@ -415,7 +464,7 @@ class YouthPolicyRAG:
         # 결과가 너무 적으면 전국 정책만이라도 반환
         if len(filtered_docs) < 3:
             print("⚠️ 필터링 결과 부족, 전국 정책 추가 검색")
-            for doc in all_docs:
+            for doc in active_docs:
                 if len(filtered_docs) >= 5:
                     break
                 metadata = doc.metadata
@@ -425,30 +474,11 @@ class YouthPolicyRAG:
         
         return filtered_docs[:5]
     
-    def _fallback_retrieve(self, question):
-        """폴백: 기존 ChromaDB 직접 검색"""
-        query_embedding = self.embeddings.embed_query(question)
-        search_count = 25 if (self.user_age or self.user_region) else 5
-        
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=search_count
-        )
-        
-        if not results['documents'][0]:
-            return []
-        
-        filtered_docs = []
-        for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
-            filtered_docs.append(Document(
-                page_content=doc,
-                metadata=metadata
-            ))
-        
-        return filtered_docs[:5]
-    
     def _format_docs(self, docs):
         """문서 포맷팅"""
+        if not docs:
+            return "검색된 정책이 없습니다."
+        
         formatted = []
         for i, doc in enumerate(docs, 1):
             metadata = doc.metadata
@@ -639,16 +669,7 @@ def main():
     # RAG 시스템 초기화
     rag = YouthPolicyRAG()
     
-    # 사용자 정보 설정 (테스트용)
-    # rag.set_user_info(age=27, region="경기도 의정부시")
-    
-    # 테스트 질문
-    print("\n" + "=" * 70)
-    print("🧪 Router 테스트")
-    print("=" * 70)
-    
-    # 대화형 모드
-    print("\n대화형 모드로 전환합니다...\n")
+    # 대화형 모드 실행
     rag.interactive_mode()
 
 
