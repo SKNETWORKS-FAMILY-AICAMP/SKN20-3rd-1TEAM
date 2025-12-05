@@ -69,7 +69,7 @@ def get_region_options():
         "경상남도",
         "제주특별자치도"
     ]
-
+ 
 
 def get_district_options(region):
     """선택된 시/도에 따른 시/군/구 옵션 반환"""
