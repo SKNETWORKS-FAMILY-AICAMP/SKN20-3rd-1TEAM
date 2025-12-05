@@ -122,6 +122,35 @@ class MultiQueryGenerator:
 class YouthPolicyRAG:
     """청년 정책 RAG 시스템"""
     
+    def _parse_region(self, region_str: str):
+        """
+        사용자 입력 지역을 (시/도, 시/군/구)로 나누는 함수
+        예) '경기도 구리시' -> ('경기', '구리시')
+        """
+        region_str = region_str.strip()
+
+        # 공백 기준으로 나누기: "경기도 구리시" → ["경기도", "구리시"]
+        parts = region_str.split()
+
+        sido = None      # 시/도
+        sigungu = None   # 시/군/구
+
+        if len(parts) >= 1:
+            sido = parts[0]  # "경기도"
+        if len(parts) >= 2:
+            sigungu = parts[1]  # "구리시"
+
+        # 시/도 뒤의 "특별시/광역시/특별자치시/도" 정도만 정리
+        if sido:
+            for suffix in ["특별시", "광역시", "특별자치시"]:
+                if sido.endswith(suffix):
+                    sido = sido.replace(suffix, "")
+            if sido.endswith("도"):
+                sido = sido[:-1]  # "경기도" → "경기"
+
+        return sido, sigungu
+    
+    
     def __init__(self, db_path="../data/vectordb"):
         """
         초기화
@@ -358,61 +387,53 @@ class YouthPolicyRAG:
             # 지역 필터링 (계층적 매칭: 전국 → 시/도 → 시/군/구)
             region_match = True
             if self.user_region:
-                org_name = metadata.get('주관기관명', '')
-                additional_cond = metadata.get('추가자격조건', '')
-                reg_group = metadata.get('재공기관그룹', '')
-                
+                org_name = metadata.get('주관기관명', '') or ''
+                additional_cond = metadata.get('추가자격조건', '') or ''
+                reg_group = metadata.get('재공기관그룹', '') or ''
                 policy_name = metadata.get('정책명', 'N/A')
-                
-                # 1순위: 전국 정책은 항상 포함
+
+                # 1순위: 전국/중앙부처 정책
                 if '중앙부처' in reg_group or '전국' in org_name:
                     region_match = True
                     print(f"  ✓ 전국 정책: {policy_name} (기관: {org_name})")
                 else:
-                    # 2순위: 시/도 단위 매칭 (구/군 입력 시에도 시/도 정책 포함)
-                    sido_list = ['서울', '경기', '인천', '부산', '대구', '광주', '대전', '울산', '세종',
-                               '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주']
+                    region_match = False  # 기본값은 False
+
+                    user_sido, user_sigungu = self._parse_region(self.user_region)
+
+                    # 2순위: 시/군/구 매칭 (예: '구리시')
+                    if user_sigungu and len(user_sigungu) >= 2:
+                        if user_sigungu in org_name or user_sigungu in additional_cond:
+                            region_match = True
+                            print(f"  ✓ 시/군/구 매칭: {policy_name} ({user_sigungu}, 기관: {org_name})")
+
+                    # 3순위: 시/도 매칭 (예: '경기')
+                    if not region_match and user_sido and len(user_sido) >= 2:
+                        if user_sido in org_name or user_sido in additional_cond:
+                            region_match = True
+                            print(f"  ✓ 시/도 매칭: {policy_name} ({user_sido}, 기관: {org_name})")
+
+                    # 아무것도 안 맞으면 제외
+                    if not region_match:
+                        print(f"  ✗ 지역 불일치로 제외: {policy_name} (기관: {org_name})")
+
+                    # 아무것도 안 맞으면 제외
+                    if not region_match:
+                        print(f"  ✗ 지역 불일치로 제외: {policy_name} (기관: {org_name})")
                     
-                    user_sido = None
-                    for sido in sido_list:
-                        if sido in self.user_region:
-                            user_sido = sido
-                            break
-                    
-                    # 시/도 매칭 확인
-                    if user_sido and user_sido in org_name:
-                        region_match = True
-                        print(f"  ✓ 시/도 매칭: {policy_name} (시/도: {user_sido}, 기관: {org_name})")
-                    else:
-                        # 3순위: 구/군 단위 상세 매칭
-                        region_clean = self.user_region.replace('특별시', '').replace('광역시', '').replace('특별자치시', '')
-                        region_clean = region_clean.replace('도', '').replace('시', '').replace('군', '').replace('구', '').strip()
-                        
-                        user_region_tokens = []
-                        if user_sido:
-                            user_region_tokens.append(user_sido)
-                        
-                        for token in region_clean.split():
-                            if token and token not in user_region_tokens:
-                                user_region_tokens.append(token)
-                        
-                        region_match = False
-                        for token in user_region_tokens:
-                            if token in org_name or token in additional_cond:
-                                region_match = True
-                                print(f"  ✓ 상세 매칭: {policy_name} (토큰: {token}, 기관: {org_name})")
-                                break
-                        
-                        if not region_match:
-                            print(f"  ✗ 제외: {policy_name} (기관: {org_name})")
-            
-            # 두 조건 모두 만족하면 포함
+                    # 두 조건 모두 만족하면 포함
+                    if age_match and region_match:
+                        filtered_docs.append(doc)
+                
+            # -----------------------
+            # 3) 최종 포함 여부
+            # -----------------------
             if age_match and region_match:
                 filtered_docs.append(doc)
-        
+                
         print(f"✅ 필터링 후: {len(filtered_docs)}개")
-        
-        # 결과가 너무 적으면 전국 정책만이라도 반환
+                
+        # 결과가 너무 적으면 전국 정책 추가
         if len(filtered_docs) < 3:
             print("⚠️ 필터링 결과 부족, 전국 정책 추가 검색")
             for doc in all_docs:
@@ -424,6 +445,8 @@ class YouthPolicyRAG:
                     filtered_docs.append(doc)
         
         return filtered_docs[:5]
+    
+    
     
     def _fallback_retrieve(self, question):
         """폴백: 기존 ChromaDB 직접 검색"""
