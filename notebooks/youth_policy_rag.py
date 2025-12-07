@@ -16,6 +16,12 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, AIMessage
 
+# Ensure scikit-learn is available for TF-IDF / BM25 retrievers
+try:
+    import sklearn  # noqa: F401
+except Exception as _e:
+    raise ImportError("Could not import scikit-learn, please install with pip install scikit-learn.")
+
 # 환경 변수 로드
 load_dotenv()
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
