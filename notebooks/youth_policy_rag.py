@@ -383,11 +383,27 @@ class YouthPolicyRAG:
         user_district = tokens[-1] if len(tokens) > 1 else ""  # 계양구, 서구 등
 
 
+
+        # 0단계: 시/도 없이 '서구/중구/동구/남구/북구'만 들어온 모호한 질문 막기
+        ambiguous_districts = ["서구", "중구", "동구", "남구", "북구"]
         # 시/도 기본 이름 리스트 (앞 두 글자 기준)
         sido_bases = [
             "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
             "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
         ]
+        
+        # 질문에 모호한 구 이름이 등장하고, 시/도가 전혀 언급되지 않았다면 → 시/도까지 요구
+        if any(d in question for d in ambiguous_districts) and not any(
+            s in question for s in sido_bases
+        ):
+            return (
+                "‘서구’, ‘중구’, ‘동구’, ‘남구’, ‘북구’처럼 여러 시·도에 있는 지역은\n"
+                "정확한 검색을 위해 **시/도까지 함께** 말씀해 주세요.\n\n"
+                "예시)\n"
+                "- 인천광역시 서구에 사는 25세인데 받을 수 있는 정책 알려줘\n"
+                "- 부산광역시 서구 청년인데 주거 지원 정책 알려줘\n\n"
+                "한 번만 더, 시/도 + 구까지 적어서 질문해 줄래요? 😊"
+            )
 
         # user_region 에서 시/도 기본 이름 추출 (예: "인천광역시 서구" → "인천")
         user_sido_base = None
@@ -658,7 +674,7 @@ class YouthPolicyRAG:
                 else:
                     # 2순위: 시/도 단위 매칭 (구/군 입력 시에도 시/도 정책 포함)
                     sido_list = ['서울', '경기', '인천', '부산', '대구', '광주', '대전', '울산', '세종',
-                               '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주']
+                            '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주']
                     
                     user_sido = None
                     for sido in sido_list:
@@ -826,8 +842,8 @@ class YouthPolicyRAG:
 
         raw_answer = (prompt | self.llm | StrOutputParser()).invoke(
             {"chat_history": chat_history_txt,
-             "context": context,
-             "question": question}
+            "context": context,
+            "question": question}
         )
         return self.self_rag_verify(question, raw_answer, context)
     
@@ -848,14 +864,18 @@ class YouthPolicyRAG:
         
         safe_print(f"\n🔍 질문: {question}{user_info}")
         
-        if not self._is_region_consistent(question):
+        region_check = self._is_region_consistent(question)
+        # 1) _is_region_consistent가 "안내 문구(문자열)"를 직접 돌려준 경우
+        if isinstance(region_check, str):
+            return region_check
+        
+        # 2) True / False 중 False인 경우 → 현재 설정된 지역과 질문이 모순
+        if region_check is False:
             return (
                 f"현재 설정된 지역은 **{self.user_region}** 입니다.\n\n"
-                "질문에 다른 지역이 포함되어 있어 어떤 지역 기준으로 검색해야 하는지 애매해요.\n\n"
+                "질문에 다른 지역으로 검색하여 어떤 지역 기준으로 검색해야 하는지 애매해요.\n\n"
                 "✔ 현재 설정된 지역 기준으로 검색하려면,\n"
-                "  질문에서 지역 이름을 빼고 다시 물어봐 주세요.\n\n"
-                "✔ 질문에 나온 지역 기준으로 검색하고 싶다면,\n"
-                "  현재 설정된 지역 기준으로 다시 물어봐 주세요."
+                "  질문에서 지역 이름을 빼고 다시 물어봐 주시거나 현재 설정된 지역으로 물어봐주세요.\n\n"
             )
         
         # (추가) 멀티 에이전트 모드 사용 시
@@ -970,7 +990,6 @@ class YouthPolicyRAG:
             6. 각 정책 사이에 구분선(━━━)을 넣어 읽기 쉽게 하세요.
             7. 연령이 0세 ~ 0세인 경우 "제한없음"으로 표현하세요.
             8. 연령이 n세 ~ 0세인 경우 "n세 이상"으로 표현하세요.
-                                                      
             답변:"""
             )
             raw_answer = (prompt | self.llm | StrOutputParser()).invoke(
