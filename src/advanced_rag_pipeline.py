@@ -2,7 +2,7 @@
 고급 RAG 파이프라인 구현
 - Router: 질문 검증 및 정제
 - Multi-Query Generator: 다중 관점 쿼리 생성
-- Ensemble Retriever: Dense + BM25 + TF-IDF
+- Ensemble Retriever: Dense + BM25
 - RRF (Reciprocal Rank Fusion): 검색 결과 통합
 - Memory Store: 대화 맥락 관리
 """
@@ -27,17 +27,16 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.documents import Document
 
-# BM25, TF-IDF, Ensemble Retriever
+# BM25, Ensemble Retriever
 try:
     # LangChain deprecation 경고 무시
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', category=DeprecationWarning)
-        from langchain_classic.retrievers import BM25Retriever, EnsembleRetriever, TFIDFRetriever
+        from langchain_classic.retrievers import BM25Retriever, EnsembleRetriever
     RETRIEVERS_AVAILABLE = True
 except ImportError:
     RETRIEVERS_AVAILABLE = False
     BM25Retriever = None
-    TFIDFRetriever = None
     EnsembleRetriever = None
 
 # 로깅 설정
@@ -49,7 +48,7 @@ load_dotenv()
 
 # Retrievers 사용 가능 여부 확인
 if not RETRIEVERS_AVAILABLE:
-    print("⚠️ BM25/TF-IDF Retriever를 사용할 수 없습니다.")
+    print("⚠️ BM25 Retriever를 사용할 수 없습니다.")
     print("⚠️ 설치: pip install langchain-community")
 
 
@@ -161,28 +160,24 @@ class MultiQueryGenerator:
 # ============================================================================
 
 class EnsembleRetriever:
-    """Dense, BM25, TF-IDF 검색을 결합한 앙상블 리트리버"""
+    """Dense, BM25 검색을 결합한 앙상블 리트리버"""
     
     def __init__(
         self, 
         documents: List[any],
         vectorstore: Chroma,
         bm25_k: int = 5,
-        tfidf_k: int = 5,
-        vector_k: int = 5,
-        bm25_weight: float = 0.3,
-        tfidf_weight: float = 0.3,
-        vector_weight: float = 0.4
+        vector_k: int = 10,
+        bm25_weight: float = 0.4,
+        vector_weight: float = 0.6
     ):
         self.documents = documents
         self.vectorstore = vectorstore
         
         # 파라미터 저장
         self.bm25_k = bm25_k
-        self.tfidf_k = tfidf_k
         self.vector_k = vector_k
         self.bm25_weight = bm25_weight
-        self.tfidf_weight = tfidf_weight
         self.vector_weight = vector_weight
         
         # 사용자 정보 초기화
@@ -191,7 +186,6 @@ class EnsembleRetriever:
         
         # 각 리트리버 초기화
         self._build_bm25()
-        self._build_tfidf()
         self._build_vector()
     
     def _build_bm25(self):
@@ -208,21 +202,6 @@ class EnsembleRetriever:
         except Exception as e:
             print(f"❌ BM25 Retriever 초기화 실패: {e}")
             self.bm25_retriever = None
-    
-    def _build_tfidf(self):
-        """TF-IDF Retriever 생성"""
-        if not RETRIEVERS_AVAILABLE or TFIDFRetriever is None:
-            print("⚠️ TFIDFRetriever를 사용할 수 없습니다.")
-            self.tfidf_retriever = None
-            return
-        
-        try:
-            self.tfidf_retriever = TFIDFRetriever.from_documents(self.documents)
-            self.tfidf_retriever.k = self.tfidf_k
-            print(f"✅ TF-IDF Retriever 초기화 완료 (k={self.tfidf_k})")
-        except Exception as e:
-            print(f"❌ TF-IDF Retriever 초기화 실패: {e}")
-            self.tfidf_retriever = None
     
     def _build_vector(self):
         """Vector Retriever 생성"""
@@ -355,25 +334,11 @@ class EnsembleRetriever:
             print(f"❌ BM25 Search Error: {e}")
             return []
     
-    def tfidf_search(self, query: str) -> List[Tuple[any, float]]:
-        """TF-IDF 검색"""
-        try:
-            if self.tfidf_retriever:
-                docs = self.tfidf_retriever.invoke(query)
-                results = [(doc, 1.0) for doc in docs]
-                print(f"  📊 TF-IDF: {len(results)}개 문서")
-                return results
-            return []
-        except Exception as e:
-            print(f"❌ TF-IDF Search Error: {e}")
-            return []
-    
     def retrieve(self, queries: List[str]) -> Dict[str, List[Tuple[any, float]]]:
         """모든 검색 전략 실행"""
         all_results = {
             'dense': [],
-            'bm25': [],
-            'tfidf': []
+            'bm25': []
         }
         
         for query in queries:
@@ -384,7 +349,6 @@ class EnsembleRetriever:
             print(f"🔎 검색 중: {enhanced_query}")
             all_results['dense'].extend(self.dense_search(enhanced_query))
             all_results['bm25'].extend(self.bm25_search(enhanced_query))
-            all_results['tfidf'].extend(self.tfidf_search(enhanced_query))
         
         return all_results
     
@@ -401,10 +365,6 @@ class EnsembleRetriever:
             if self.bm25_retriever:
                 retrievers.append(self.bm25_retriever)
                 weights.append(self.bm25_weight)
-            
-            if self.tfidf_retriever:
-                retrievers.append(self.tfidf_retriever)
-                weights.append(self.tfidf_weight)
             
             if self.vector_retriever:
                 retrievers.append(self.vector_retriever)
@@ -529,11 +489,9 @@ class AdvancedRAGPipeline:
         enable_rrf: bool = True,
         enable_memory: bool = True,
         bm25_k: int = 5,
-        tfidf_k: int = 5,
-        vector_k: int = 5,
-        bm25_weight: float = 0.3,
-        tfidf_weight: float = 0.3,
-        vector_weight: float = 0.4
+        vector_k: int = 10,
+        bm25_weight: float = 0.4,
+        vector_weight: float = 0.6
     ):
         self.documents = documents
         self.vectorstore = vectorstore
@@ -546,10 +504,8 @@ class AdvancedRAGPipeline:
             documents=documents,
             vectorstore=vectorstore,
             bm25_k=bm25_k,
-            tfidf_k=tfidf_k,
             vector_k=vector_k,
             bm25_weight=bm25_weight,
-            tfidf_weight=tfidf_weight,
             vector_weight=vector_weight
         ) if enable_ensemble else None
         self.rrf = ReciprocalRankFusion() if enable_rrf else None
@@ -759,11 +715,9 @@ def main():
         enable_rrf=True,
         enable_memory=True,
         bm25_k=5,
-        tfidf_k=5,
-        vector_k=5,
-        bm25_weight=0.3,
-        tfidf_weight=0.3,
-        vector_weight=0.4
+        vector_k=10,
+        bm25_weight=0.4,
+        vector_weight=0.6
     )
     
     # 사용자 프로필 설정
