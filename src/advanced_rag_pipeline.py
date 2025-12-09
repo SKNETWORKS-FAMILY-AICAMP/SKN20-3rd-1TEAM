@@ -175,10 +175,27 @@ class EnsembleRetriever:
             self.bm25_retriever = None
             return
         
+        if not self.documents:
+            print("⚠️ BM25: 문서가 없어 초기화를 건너뜁니다.")
+            self.bm25_retriever = None
+            return
+        
         try:
-            self.bm25_retriever = BM25Retriever.from_documents(self.documents)
-            self.bm25_retriever.k = self.bm25_k
+            # BM25Retriever 초기화 (from_documents 사용)
+            self.bm25_retriever = BM25Retriever.from_documents(
+                documents=self.documents,
+                k=self.bm25_k
+            )
             print(f"✅ BM25 Retriever 초기화 완료 (k={self.bm25_k})")
+        except TypeError as e:
+            # from_documents가 실패하면 직접 초기화 시도
+            try:
+                self.bm25_retriever = BM25Retriever(docs=self.documents)
+                self.bm25_retriever.k = self.bm25_k
+                print(f"✅ BM25 Retriever 초기화 완료 (대체 방식, k={self.bm25_k})")
+            except Exception as e2:
+                print(f"❌ BM25 Retriever 초기화 실패: {e2}")
+                self.bm25_retriever = None
         except Exception as e:
             print(f"❌ BM25 Retriever 초기화 실패: {e}")
             self.bm25_retriever = None
@@ -415,6 +432,24 @@ class AdvancedRAGPipeline:
 [현재 질문]
 {query}""")
         ])
+        
+        # 요약 프롬프트
+        self.summary_prompt = ChatPromptTemplate.from_messages([
+            ("system", """당신은 청년 정책 답변을 간결하게 요약하는 전문가입니다.
+
+요약 원칙:
+1. 핵심 정책 3-5개만 선별
+2. 각 정책을 1-2줄로 요약 (정책명, 지원내용, 신청기간)
+3. 신청 방법, 지원 금액 등 실용적 정보 우선
+4. 불필요한 인사말이나 부연 설명 제거
+5. 번호 리스트 형식으로 작성
+
+예시:
+1. [정책명] - 지원내용 (신청기간: ~)
+2. [정책명] - 지원내용 (신청기간: ~)
+..."""),
+            ("user", "다음 답변을 3-5개 핵심 정책으로 요약해주세요:\n\n{answer}")
+        ])
     
     def query(self, user_query: str) -> Dict:
         """전체 파이프라인 실행"""
@@ -473,16 +508,22 @@ class AdvancedRAGPipeline:
                 "query": user_query
             })
             
+            # 7. 요약 생성 (Chain of Thought)
+            summary_response = self.summary_prompt | self.llm | StrOutputParser()
+            summary = summary_response.invoke({"answer": answer})
+            
             # 메모리에 저장
             if self.memory:
                 self.memory.add_message("user", user_query)
                 self.memory.add_message("assistant", answer)
             
             print(f"\n✅ 답변 생성 완료")
+            print(f"📌 요약 생성 완료")
             print(f"{'='*60}\n")
             
             return {
                 "answer": answer,
+                "summary": summary,
                 "documents": docs,
                 "metadata": {
                     "queries": queries,
@@ -530,10 +571,17 @@ def main():
         api_key=api_key
     )
     
-    # VectorDB 로드 (절대 경로 사용)
-    vectordb_path = os.path.abspath("../data/vectordb")
+    # VectorDB 로드 (프로젝트 루트 기준 경로)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    vectordb_path = os.path.join(project_root, "data", "vectordb")
+    
     print(f"📂 VectorDB 경로: {vectordb_path}")
     print(f"📂 경로 존재 여부: {os.path.exists(vectordb_path)}")
+    
+    if not os.path.exists(vectordb_path):
+        print("❌ VectorDB 경로가 존재하지 않습니다. build_vectordb.py를 먼저 실행하세요.")
+        return
     
     vectorstore = Chroma(
         collection_name="youth_policies",
@@ -541,17 +589,22 @@ def main():
         persist_directory=vectordb_path
     )
     
-    # 문서 로드 (BM25, TF-IDF를 위해 필요)
+    # 문서 로드 (BM25를 위해 필요)
     # ChromaDB에서 모든 문서 가져오기
     all_docs = vectorstore.get()
     print(f"📊 ChromaDB 로드 결과: {len(all_docs.get('documents', []))}개 문서")
+    
+    if not all_docs or not all_docs.get('documents'):
+        print("❌ VectorDB에 문서가 없습니다. build_vectordb.py를 먼저 실행하세요.")
+        return
     
     documents = []
     if all_docs and 'documents' in all_docs:
         from langchain_core.documents import Document
         for i, doc_text in enumerate(all_docs['documents']):
-            metadata = all_docs['metadatas'][i] if 'metadatas' in all_docs else {}
-            documents.append(Document(page_content=doc_text, metadata=metadata))
+            if doc_text and doc_text.strip():  # 빈 문서 제외
+                metadata = all_docs['metadatas'][i] if 'metadatas' in all_docs else {}
+                documents.append(Document(page_content=doc_text, metadata=metadata))
     
     print(f"📚 총 {len(documents)}개 문서 로드 완료")
     
@@ -579,8 +632,9 @@ def main():
     for query in queries:
         result = rag.query(query)
         print(f"\n질문: {query}")
-        print(f"답변: {result['answer']}")
-        print(f"문서 수: {result['metadata'].get('num_docs_retrieved', 0)}")
+        print(f"\n📄 전체 답변:\n{result['answer']}")
+        print(f"\n📌 요약:\n{result['summary']}")
+        print(f"\n문서 수: {result['metadata'].get('num_docs_retrieved', 0)}")
         print("-" * 60)
 
 
