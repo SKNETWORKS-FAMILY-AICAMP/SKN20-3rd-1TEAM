@@ -65,19 +65,19 @@ class QueryRouter:
         self.router_prompt = ChatPromptTemplate.from_messages([
             ("system", """당신은 사용자 질문을 분석하고 정제하는 라우터입니다.
 
-작업:
-1. 질문이 의미 있는지 검증 (인사말, 욕설, 무의미한 입력 제외)
-2. 질문 카테고리 분류 (정책검색, 추천, 일반질문 등)
-3. LLM이 처리하기 좋은 형태로 정제
+            작업:
+            1. 질문이 의미 있는지 검증 (인사말, 욕설, 무의미한 입력 제외)
+            2. 질문 카테고리 분류 (정책검색, 추천, 일반질문 등)
+            3. LLM이 처리하기 좋은 형태로 정제
 
-응답 형식 (JSON):
-{{
-    "is_valid": true/false,
-    "category": "정책검색|정책추천|일반질문|기타",
-    "refined_query": "정제된 질문",
-    "reason": "판단 이유"
-}}"""),
-            ("user", "{query}")
+            응답 형식 (JSON):
+            {{
+                "is_valid": true/false,
+                "category": "정책검색|정책추천|일반질문|기타",
+                "refined_query": "정제된 질문",
+                "reason": "판단 이유"
+            }}"""),
+                        ("user", "{query}")
         ])
     
     def route(self, query: str) -> Dict:
@@ -115,15 +115,15 @@ class MultiQueryGenerator:
         self.multi_query_prompt = ChatPromptTemplate.from_messages([
             ("system", """당신은 검색 쿼리를 다양한 관점으로 확장하는 전문가입니다.
 
-주어진 질문을 3가지 다른 관점에서 재구성하세요:
-1. 키워드 중심 쿼리
-2. 의미 중심 쿼리
-3. 맥락 중심 쿼리
+            주어진 질문을 3가지 다른 관점에서 재구성하세요:
+            1. 키워드 중심 쿼리
+            2. 의미 중심 쿼리
+            3. 맥락 중심 쿼리
 
-{region_instruction}
+            {region_instruction}
 
-각 쿼리는 한 줄로 작성하고, 번호 없이 줄바꿈으로 구분하세요."""),
-            ("user", "{query}")
+            각 쿼리는 한 줄로 작성하고, 번호 없이 줄바꿈으로 구분하세요."""),
+                        ("user", "{query}")
         ])
     
     def generate(self, query: str) -> List[str]:
@@ -515,25 +515,25 @@ class AdvancedRAGPipeline:
         self.answer_prompt = ChatPromptTemplate.from_messages([
             ("system", """당신은 청년 정책 전문 상담사입니다.
 
-검색된 정책 정보와 대화 맥락을 바탕으로 친절하고 정확한 답변을 제공하세요.
+            검색된 정책 정보와 대화 맥락을 바탕으로 친절하고 정확한 답변을 제공하세요.
 
-답변 원칙:
-1. 검색된 문서 정보를 기반으로 답변
-2. 정책명, 신청 기간, 지원 내용 등 구체적으로 설명
-3. 대화 맥락을 고려하여 자연스럽게 답변
-4. 정보가 부족하면 솔직하게 말하기
-5. **제공된 모든 정책을 가능한 포함하여 답변하세요** (최소 3개 이상)"""),
-            ("user", """[대화 맥락]
-{context}
+            답변 원칙:
+            1. 검색된 문서 정보를 기반으로 답변
+            2. 정책명, 신청 기간, 지원 내용 등 구체적으로 설명
+            3. 대화 맥락을 고려하여 자연스럽게 답변
+            4. 정보가 부족하면 솔직하게 말하기
+            5. **제공된 모든 정책을 가능한 포함하여 답변하세요** (최소 3개 이상)"""),
+                        ("user", """[대화 맥락]
+            {context}
 
-[사용자 프로필]
-{profile}
+            [사용자 프로필]
+            {profile}
 
-[검색된 정책 정보]
-{documents}
+            [검색된 정책 정보]
+            {documents}
 
-[현재 질문]
-{query}""")
+            [현재 질문]
+            {query}""")
         ])
     
     def query(self, user_query: str) -> Dict:
