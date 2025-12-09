@@ -8,7 +8,6 @@
 """
 
 import os
-import logging
 from datetime import datetime
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, field
@@ -38,10 +37,6 @@ except ImportError:
     RETRIEVERS_AVAILABLE = False
     BM25Retriever = None
     EnsembleRetriever = None
-
-# 로깅 설정
-logging.basicConfig(level=logging.INFO, format='%(message)s')
-logger = logging.getLogger('advanced_rag')
 
 # 환경 변수 로드
 load_dotenv()
@@ -110,17 +105,16 @@ class MultiQueryGenerator:
     
     def __init__(self, llm: ChatOpenAI):
         self.llm = llm
-        self.user_region = None  # 사용자 지역 정보
         
         self.multi_query_prompt = ChatPromptTemplate.from_messages([
             ("system", """당신은 검색 쿼리를 다양한 관점으로 확장하는 전문가입니다.
 
-            주어진 질문을 3가지 다른 관점에서 재구성하세요:
-            1. 키워드 중심 쿼리
-            2. 의미 중심 쿼리
-            3. 맥락 중심 쿼리
+주어진 질문을 3가지 다른 관점에서 재구성하세요:
+1. 키워드 중심 쿼리
+2. 의미 중심 쿼리
+3. 맥락 중심 쿼리
 
-            {region_instruction}
+{region_instruction}
 
             각 쿼리는 한 줄로 작성하고, 번호 없이 줄바꿈으로 구분하세요."""),
                         ("user", "{query}")
@@ -129,16 +123,8 @@ class MultiQueryGenerator:
     def generate(self, query: str) -> List[str]:
         """다중 쿼리 생성"""
         try:
-            # 지역 정보가 있으면 프롬프트에 추가
-            region_instruction = ""
-            if self.user_region:
-                region_instruction = f"사용자의 지역은 '{self.user_region}'입니다. 가능하면 지역 정보를 자연스럽게 포함하세요."
-            
             response = self.multi_query_prompt | self.llm | StrOutputParser()
-            result = response.invoke({
-                "query": query,
-                "region_instruction": region_instruction
-            })
+            result = response.invoke({"query": query})
             
             # 쿼리 분리 (줄바꿈 기준)
             queries = [q.strip() for q in result.split('\n') if q.strip()]
@@ -180,10 +166,6 @@ class EnsembleRetriever:
         self.bm25_weight = bm25_weight
         self.vector_weight = vector_weight
         
-        # 사용자 정보 초기화
-        self.user_age = None
-        self.user_region = None
-        
         # 각 리트리버 초기화
         self._build_bm25()
         self._build_vector()
@@ -195,10 +177,27 @@ class EnsembleRetriever:
             self.bm25_retriever = None
             return
         
+        if not self.documents:
+            print("⚠️ BM25: 문서가 없어 초기화를 건너뜁니다.")
+            self.bm25_retriever = None
+            return
+        
         try:
-            self.bm25_retriever = BM25Retriever.from_documents(self.documents)
-            self.bm25_retriever.k = self.bm25_k
+            # BM25Retriever 초기화 (from_documents 사용)
+            self.bm25_retriever = BM25Retriever.from_documents(
+                documents=self.documents,
+                k=self.bm25_k
+            )
             print(f"✅ BM25 Retriever 초기화 완료 (k={self.bm25_k})")
+        except TypeError as e:
+            # from_documents가 실패하면 직접 초기화 시도
+            try:
+                self.bm25_retriever = BM25Retriever(docs=self.documents)
+                self.bm25_retriever.k = self.bm25_k
+                print(f"✅ BM25 Retriever 초기화 완료 (대체 방식, k={self.bm25_k})")
+            except Exception as e2:
+                print(f"❌ BM25 Retriever 초기화 실패: {e2}")
+                self.bm25_retriever = None
         except Exception as e:
             print(f"❌ BM25 Retriever 초기화 실패: {e}")
             self.bm25_retriever = None
@@ -218,94 +217,6 @@ class EnsembleRetriever:
         except Exception as e:
             print(f"❌ Vector Retriever 초기화 실패: {e}")
             self.vector_retriever = None
-    
-    def filter_by_user_info(self, documents):
-        """
-        검색 결과를 사용자 정보(나이, 지역)로 필터링
-        
-        Args:
-            documents: 검색된 문서 리스트
-            
-        Returns:
-            list: 필터링된 문서 리스트
-        """
-        # 사용자 정보가 없으면 필터링 없이 반환
-        if not (self.user_age or self.user_region):
-            return documents
-        
-        filtered = []
-        
-        for doc in documents:
-            metadata = doc.metadata
-            
-            # 1. 나이 필터링
-            age_match = True
-            if self.user_age:
-                try:
-                    min_age = int(metadata.get('지원최소연령', '0') or '0')
-                    max_age = int(metadata.get('지원최대연령', '0') or '0')
-                    
-                    if min_age > 0 and self.user_age < min_age:
-                        age_match = False
-                    if max_age > 0 and max_age < 999 and self.user_age > max_age:
-                        age_match = False
-                except:
-                    pass
-            
-            # 2. 지역 필터링 (드롭다운 형식 매칭)
-            region_match = True
-            if self.user_region:
-                policy_region = metadata.get('지역', '')  # 실제 정책 적용 지역
-                
-                # 지역 필드가 있으면 확인, 없으면 전국 단위 정책으로 간주하여 포함
-                if policy_region:
-                    region_match = False
-                    
-                    # 정책 지역을 쉼표로 분리 (각 지역이 개별 항목)
-                    policy_regions = [r.strip() for r in policy_region.split(',')]
-                    
-                    # 사용자 지역 파싱: "서울특별시 강동구" → "서울특별시", "서울특별시 강동구"
-                    user_sido = self.user_region.split()[0] if ' ' in self.user_region else self.user_region
-                    
-                    # 각 정책 지역과 비교
-                    for pr in policy_regions:
-                        # 정확히 일치: "서울특별시 강동구" == "서울특별시 강동구"
-                        # 또는 시/도 매칭: "서울특별시" == "서울특별시"
-                        if self.user_region == pr or user_sido == pr:
-                            region_match = True
-                            break
-                # else: 지역 필드 없음 = 전국 단위 정책 (region_match = True 유지)
-            
-            # 두 조건 모두 만족하면 포함
-            if age_match and region_match:
-                filtered.append(doc)
-        
-        print(f"📊 필터링: {len(documents)}개 → {len(filtered)}개")
-        return filtered
-    
-    def _enhance_query(self, query):
-        """
-        사용자 정보를 활용해 검색 쿼리 증강
-        
-        Args:
-            query: 원본 검색 쿼리
-            
-        Returns:
-            str: 증강된 검색 쿼리
-        """
-        enhanced = query
-        
-        # 지역 정보 추가 (전체 지역명 사용)
-        if self.user_region:
-            # 쿼리에 지역 정보가 없으면 전체 지역명 추가
-            # 예: "서울특별시 강동구" 전체를 추가
-            if self.user_region not in query:
-                enhanced = f"{query} {self.user_region}"
-        
-        if enhanced != query:
-            print(f"🔍 쿼리 증강: '{query}' → '{enhanced}'")
-        
-        return enhanced
     
     def dense_search(self, query: str) -> List[Tuple[any, float]]:
         """Dense 검색 (임베딩 기반)"""
@@ -342,13 +253,9 @@ class EnsembleRetriever:
         }
         
         for query in queries:
-            # 쿼리 증강 제거 - MultiQueryGenerator에서 이미 지역 정보를 포함하여 생성
-            # enhanced_query = self._enhance_query(query)
-            enhanced_query = query
-            
-            print(f"🔎 검색 중: {enhanced_query}")
-            all_results['dense'].extend(self.dense_search(enhanced_query))
-            all_results['bm25'].extend(self.bm25_search(enhanced_query))
+            print(f"🔎 검색 중: {query}")
+            all_results['dense'].extend(self.dense_search(query))
+            all_results['bm25'].extend(self.bm25_search(query))
         
         return all_results
     
@@ -434,7 +341,6 @@ class ReciprocalRankFusion:
 class ConversationMemory:
     """대화 기록 관리"""
     messages: List[Dict] = field(default_factory=list)
-    user_profile: Dict = field(default_factory=dict)
     max_history: int = 10
     
     def add_message(self, role: str, content: str):
@@ -448,10 +354,6 @@ class ConversationMemory:
         # 최대 기록 수 제한
         if len(self.messages) > self.max_history * 2:
             self.messages = self.messages[-self.max_history * 2:]
-    
-    def update_profile(self, **kwargs):
-        """사용자 프로필 업데이트"""
-        self.user_profile.update(kwargs)
     
     def get_context(self) -> str:
         """대화 맥락 문자열 생성"""
@@ -468,7 +370,6 @@ class ConversationMemory:
     def clear(self):
         """기록 초기화"""
         self.messages.clear()
-        self.user_profile.clear()
 
 
 # ============================================================================
@@ -517,23 +418,23 @@ class AdvancedRAGPipeline:
 
             검색된 정책 정보와 대화 맥락을 바탕으로 친절하고 정확한 답변을 제공하세요.
 
-            답변 원칙:
-            1. 검색된 문서 정보를 기반으로 답변
-            2. 정책명, 신청 기간, 지원 내용 등 구체적으로 설명
-            3. 대화 맥락을 고려하여 자연스럽게 답변
-            4. 정보가 부족하면 솔직하게 말하기
-            5. **제공된 모든 정책을 가능한 포함하여 답변하세요** (최소 3개 이상)"""),
-                        ("user", """[대화 맥락]
-            {context}
+답변 원칙:
+1. 검색된 문서 정보를 기반으로 답변
+2. 정책명, 신청 기간, 지원 내용 등 구체적으로 설명
+3. 대화 맥락을 고려하여 자연스럽게 답변
+4. 정보가 부족하면 솔직하게 말하기
+5. **제공된 모든 정책을 가능한 포함하여 답변하세요** (최소 3개 이상)"""),
+            ("user", """[대화 맥락]
+{context}
 
-            [사용자 프로필]
-            {profile}
+[사용자 프로필]
+{profile}
 
             [검색된 정책 정보]
             {documents}
 
-            [현재 질문]
-            {query}""")
+[현재 질문]
+{query}""")
         ])
     
     def query(self, user_query: str) -> Dict:
@@ -573,19 +474,13 @@ class AdvancedRAGPipeline:
         else:
             docs = [doc for doc, score in search_results['dense']]
         
-        # 5. 사용자 정보 필터링 (나이, 지역)
-        if self.ensemble and (self.ensemble.user_age or self.ensemble.user_region):
-            docs = self.ensemble.filter_by_user_info(docs)
-        
-        # 6. Memory: 대화 맥락 가져오기
+        # 5. Memory: 대화 맥락 가져오기
         if self.memory:
             context = self.memory.get_context()
-            profile = json.dumps(self.memory.user_profile, ensure_ascii=False)
         else:
             context = "이전 대화 없음"
-            profile = "{}"
         
-        # 7. LLM: 최종 답변 생성
+        # 6. LLM: 최종 답변 생성
         docs_text = "\n\n".join([
             f"[정책 {i+1}] {doc.metadata.get('policy_name', '제목 없음')}\n{doc.page_content[:500]}"
             for i, doc in enumerate(docs[:10])
@@ -595,10 +490,13 @@ class AdvancedRAGPipeline:
             response = self.answer_prompt | self.llm | StrOutputParser()
             answer = response.invoke({
                 "context": context,
-                "profile": profile,
                 "documents": docs_text,
                 "query": user_query
             })
+            
+            # 7. 요약 생성 (Chain of Thought)
+            summary_response = self.summary_prompt | self.llm | StrOutputParser()
+            summary = summary_response.invoke({"answer": answer})
             
             # 메모리에 저장
             if self.memory:
@@ -606,10 +504,12 @@ class AdvancedRAGPipeline:
                 self.memory.add_message("assistant", answer)
             
             print(f"\n✅ 답변 생성 완료")
+            print(f"📌 요약 생성 완료")
             print(f"{'='*60}\n")
             
             return {
                 "answer": answer,
+                "summary": summary,
                 "documents": docs,
                 "metadata": {
                     "queries": queries,
@@ -625,28 +525,6 @@ class AdvancedRAGPipeline:
                 "documents": [],
                 "metadata": {"error": str(e)}
             }
-    
-    def update_user_profile(self, **kwargs):
-        """사용자 프로필 업데이트"""
-        if self.memory:
-            self.memory.update_profile(**kwargs)
-            print(f"👤 프로필 업데이트: {kwargs}")
-        
-        # Ensemble Retriever에도 사용자 정보 설정
-        if self.ensemble:
-            age = kwargs.get('age')
-            region = kwargs.get('region')
-            
-            if age is not None:
-                self.ensemble.user_age = age
-            if region is not None:
-                self.ensemble.user_region = region
-        
-        # MultiQueryGenerator에도 지역 정보 설정
-        if self.multi_query:
-            region = kwargs.get('region')
-            if region is not None:
-                self.multi_query.user_region = region
     
     def clear_memory(self):
         """대화 기록 초기화"""
@@ -679,10 +557,17 @@ def main():
         api_key=api_key
     )
     
-    # VectorDB 로드 (절대 경로 사용)
-    vectordb_path = os.path.abspath("../data/vectordb")
+    # VectorDB 로드 (프로젝트 루트 기준 경로)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    vectordb_path = os.path.join(project_root, "data", "vectordb")
+    
     print(f"📂 VectorDB 경로: {vectordb_path}")
     print(f"📂 경로 존재 여부: {os.path.exists(vectordb_path)}")
+    
+    if not os.path.exists(vectordb_path):
+        print("❌ VectorDB 경로가 존재하지 않습니다. build_vectordb.py를 먼저 실행하세요.")
+        return
     
     vectorstore = Chroma(
         collection_name="youth_policies",
@@ -690,17 +575,22 @@ def main():
         persist_directory=vectordb_path
     )
     
-    # 문서 로드 (BM25, TF-IDF를 위해 필요)
+    # 문서 로드 (BM25를 위해 필요)
     # ChromaDB에서 모든 문서 가져오기
     all_docs = vectorstore.get()
     print(f"📊 ChromaDB 로드 결과: {len(all_docs.get('documents', []))}개 문서")
+    
+    if not all_docs or not all_docs.get('documents'):
+        print("❌ VectorDB에 문서가 없습니다. build_vectordb.py를 먼저 실행하세요.")
+        return
     
     documents = []
     if all_docs and 'documents' in all_docs:
         from langchain_core.documents import Document
         for i, doc_text in enumerate(all_docs['documents']):
-            metadata = all_docs['metadatas'][i] if 'metadatas' in all_docs else {}
-            documents.append(Document(page_content=doc_text, metadata=metadata))
+            if doc_text and doc_text.strip():  # 빈 문서 제외
+                metadata = all_docs['metadatas'][i] if 'metadatas' in all_docs else {}
+                documents.append(Document(page_content=doc_text, metadata=metadata))
     
     print(f"📚 총 {len(documents)}개 문서 로드 완료")
     
@@ -720,22 +610,17 @@ def main():
         vector_weight=0.6
     )
     
-    # 사용자 프로필 설정
-    rag.update_user_profile(
-        age=25,
-        region="서울특별시 서초구",
-    )
-    
     # 테스트 질의
     queries = [
-        "월세 지원",
+        "대구 월세 지원",
     ]
     
     for query in queries:
         result = rag.query(query)
         print(f"\n질문: {query}")
-        print(f"답변: {result['answer']}")
-        print(f"문서 수: {result['metadata'].get('num_docs_retrieved', 0)}")
+        print(f"\n📄 전체 답변:\n{result['answer']}")
+        print(f"\n📌 요약:\n{result['summary']}")
+        print(f"\n문서 수: {result['metadata'].get('num_docs_retrieved', 0)}")
         print("-" * 60)
 
 
