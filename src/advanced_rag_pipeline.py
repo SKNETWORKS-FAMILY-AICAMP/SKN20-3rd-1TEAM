@@ -153,7 +153,7 @@ class EnsembleRetriever:
         bm25_k: int = 5,
         vector_k: int = 10,
         bm25_weight: float = 0.4,
-        vector_weight: float = 0.6
+        vector_weight: float = 0.6 
     ):
         self.documents = documents
         self.vectorstore = vectorstore
