@@ -344,9 +344,7 @@ def assign_region_level(policy: dict) -> str:
 
 def main():
     # 0) 법정동코드 매핑 로드
-    print("법정동코드 매핑 로드 중...")
     zip_code_map = load_zip_code_mapping()
-    print(f"✅ 법정동코드 {len(zip_code_map)}개 로드 완료")
     
     # 1) 원본 JSON 로드
     with IN_PATH.open("r", encoding="utf-8") as f:
@@ -369,13 +367,6 @@ def main():
     # 5) 리스트 형태로 저장
     with OUT_PATH.open("w", encoding="utf-8") as f:
         json.dump(transformed, f, ensure_ascii=False, indent=2)
-
-    print(f"변환 완료: {len(transformed)}건 -> {OUT_PATH}")
-    
-    # 6) 통계 출력
-    nationwide_count = sum(1 for rec in transformed if rec.get("지역범위") == "전국")
-    regional_count = sum(1 for rec in transformed if rec.get("지역범위") == "지역")
-    print(f"📊 지역범위 통계: 전국 {nationwide_count}개, 지역 {regional_count}개")
 
 
 if __name__ == "__main__":

@@ -42,11 +42,6 @@ except ImportError:
 # 환경 변수 로드
 load_dotenv()
 
-# Retrievers 사용 가능 여부 확인
-if not RETRIEVERS_AVAILABLE:
-    print("⚠️ BM25 Retriever를 사용할 수 없습니다.")
-    print("⚠️ 설치: pip install langchain-community")
-
 
 # ============================================================================
 # 2. Router: 질문 검증 및 정제
@@ -84,11 +79,9 @@ class QueryRouter:
             
             # JSON 파싱
             result = json.loads(result_str)
-            print(f"🔀 Router: {result['category']} | Valid: {result['is_valid']}")
             
             return result
         except Exception as e:
-            print(f"❌ Router Error: {e}")
             return {
                 "is_valid": True,
                 "category": "일반질문",
@@ -138,11 +131,9 @@ class RegionFilter:
             
             # JSON 파싱
             result = json.loads(result_str)
-            print(f"🌍 지역 탐지: {result.get('region_name', '없음')} | 전국: {result.get('is_national', False)}")
             
             return result
         except Exception as e:
-            print(f"❌ Region Detection Error: {e}")
             return {
                 "has_region": False,
                 "is_national": False,
@@ -181,7 +172,6 @@ class RegionFilter:
             elif region_name in doc.metadata.get('지역', ''):
                 filtered_docs.append(doc)
         
-        print(f"🔍 지역 필터링: {len(documents)}개 → {len(filtered_docs)}개")
         return filtered_docs if filtered_docs else documents  # 결과가 없으면 원본 반환
     
 
@@ -226,14 +216,10 @@ class MultiQueryGenerator:
             # 원본 쿼리 포함
             all_queries = [query] + queries
             
-            print(f"🔍 Multi-Query 생성: {len(all_queries)}개")
-            for i, q in enumerate(all_queries, 1):
-                print(f"  {i}. {q}")
             
             return all_queries
         
         except Exception as e:
-            print(f"❌ Multi-Query Error: {e}")
             return [query]
 
 
@@ -271,12 +257,10 @@ class EnsembleRetriever:
     def _build_bm25(self):
         """BM25 Retriever 생성"""
         if not RETRIEVERS_AVAILABLE or BM25Retriever is None:
-            print("⚠️ BM25Retriever를 사용할 수 없습니다.")
             self.bm25_retriever = None
             return
         
         if not self.documents:
-            print("⚠️ BM25: 문서가 없어 초기화를 건너뜁니다.")
             self.bm25_retriever = None
             return
         
@@ -286,18 +270,14 @@ class EnsembleRetriever:
                 documents=self.documents,
                 k=self.bm25_k
             )
-            print(f"✅ BM25 Retriever 초기화 완료 (k={self.bm25_k})")
         except TypeError as e:
             # from_documents가 실패하면 직접 초기화 시도
             try:
                 self.bm25_retriever = BM25Retriever(docs=self.documents)
                 self.bm25_retriever.k = self.bm25_k
-                print(f"✅ BM25 Retriever 초기화 완료 (대체 방식, k={self.bm25_k})")
             except Exception as e2:
-                print(f"❌ BM25 Retriever 초기화 실패: {e2}")
                 self.bm25_retriever = None
         except Exception as e:
-            print(f"❌ BM25 Retriever 초기화 실패: {e}")
             self.bm25_retriever = None
     
     def _build_vector(self):
@@ -305,15 +285,12 @@ class EnsembleRetriever:
         try:
             # VectorStore 상태 확인
             test_search = self.vectorstore.similarity_search("테스트", k=1)
-            print(f"🧪 VectorStore 테스트 검색: {len(test_search)}개 문서")
             
             self.vector_retriever = self.vectorstore.as_retriever(
                 search_type="similarity",
                 search_kwargs={"k": self.vector_k}
             )
-            print(f"✅ Vector Retriever 초기화 완료 (k={self.vector_k})")
         except Exception as e:
-            print(f"❌ Vector Retriever 초기화 실패: {e}")
             self.vector_retriever = None
     
     def dense_search(self, query: str, metadata_filter: Dict = None) -> List[Tuple[any, float]]:
@@ -331,11 +308,9 @@ class EnsembleRetriever:
                     docs = self.vector_retriever.invoke(query)
                 
                 results = [(doc, 1.0) for doc in docs]
-                print(f"  📊 Dense: {len(results)}개 문서")
                 return results
             return []
         except Exception as e:
-            print(f"❌ Dense Search Error: {e}")
             return []
     
     def bm25_search(self, query: str) -> List[Tuple[any, float]]:
@@ -344,11 +319,9 @@ class EnsembleRetriever:
             if self.bm25_retriever:
                 docs = self.bm25_retriever.invoke(query)
                 results = [(doc, 1.0) for doc in docs]
-                print(f"  📊 BM25: {len(results)}개 문서")
                 return results
             return []
         except Exception as e:
-            print(f"❌ BM25 Search Error: {e}")
             return []
     
     def retrieve(self, queries: List[str], metadata_filter: Dict = None) -> Dict[str, List[Tuple[any, float]]]:
@@ -359,7 +332,6 @@ class EnsembleRetriever:
         }
         
         for query in queries:
-            print(f"🔎 검색 중: {query}")
             all_results['dense'].extend(self.dense_search(query, metadata_filter))
             all_results['bm25'].extend(self.bm25_search(query))
         
@@ -368,7 +340,6 @@ class EnsembleRetriever:
     def get_ensemble(self, query: str) -> List[any]:
         """Ensemble 검색 (가중치 적용)"""
         if not RETRIEVERS_AVAILABLE or EnsembleRetriever is None:
-            print("⚠️ EnsembleRetriever를 사용할 수 없습니다. Vector 검색만 사용합니다.")
             return self.dense_search(query)
         
         try:
@@ -384,7 +355,6 @@ class EnsembleRetriever:
                 weights.append(self.vector_weight)
             
             if not retrievers:
-                print("❌ 사용 가능한 retriever가 없습니다")
                 return []
             
             # 가중치 정규화
@@ -398,11 +368,9 @@ class EnsembleRetriever:
             )
             
             docs = ensemble.invoke(query)
-            print(f"🔗 Ensemble: {len(docs)}개 문서")
             return docs
             
         except Exception as e:
-            print(f"❌ Ensemble Search Error: {e}")
             return []
 
 
@@ -435,7 +403,6 @@ class ReciprocalRankFusion:
         sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1]['score'], reverse=True)
         final_docs = [item[1]['doc'] for item in sorted_docs[:top_k]]
         
-        print(f"🔗 RRF: {len(doc_scores)}개 문서 → {len(final_docs)}개 선택")
         return final_docs
 
 
@@ -611,9 +578,6 @@ class AdvancedRAGPipeline:
 
     def query(self, user_query: str) -> Dict:
         """전체 파이프라인 실행"""
-        print(f"\n{'='*60}")
-        print(f"📝 사용자 질문: {user_query}")
-        print(f"{'='*60}")
         
         # 1. Router: 질문 검증 및 정제
         if self.router:
@@ -634,8 +598,6 @@ class AdvancedRAGPipeline:
         if self.region_filter:
             region_info = self.region_filter.detect_region(query)
             metadata_filter = self.region_filter.build_filter(region_info)
-            if metadata_filter:
-                print(f"🔍 메타데이터 필터 적용: {metadata_filter}")
         
         # 3. Multi-Query: 다중 쿼리 생성
         if self.multi_query:
@@ -694,10 +656,6 @@ class AdvancedRAGPipeline:
                 self.memory.add_message("user", user_query)
                 self.memory.add_message("assistant", answer)
             
-            print(f"\n✅ 답변 생성 완료")
-            print(f"📑 요약 생성 완료")
-            print(f"{'='*60}\n")
-            
             return {
                 "answer": answer,
                 "summary": summary,
@@ -711,7 +669,6 @@ class AdvancedRAGPipeline:
             }
             
         except Exception as e:
-            print(f"❌ Answer Generation Error: {e}")
             return {
                 "answer": "답변 생성 중 오류 발생",
                 "documents": [],
@@ -722,7 +679,6 @@ class AdvancedRAGPipeline:
         """대화 기록 초기화"""
         if self.memory:
             self.memory.clear()
-            print("메모리 초기화 완료")
 
 
 # ============================================================================
@@ -805,96 +761,3 @@ def initialize_rag_pipeline(vectordb_path: str = None, api_key: str = None):
     )
     
     return rag
-
-
-# ============================================================================
-# 10. Main 함수 (테스트용)
-# ============================================================================
-
-def main():
-    """고급 RAG 파이프라인 테스트"""
-    
-    # 환경 변수 확인
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError('OPENAI_API_KEY가 설정되지 않았습니다.')
-    
-    # LLM 및 임베딩 초기화
-    llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        temperature=0.0,
-        api_key=api_key
-    )
-    
-    embeddings = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        api_key=api_key
-    )
-    
-    # VectorDB 로드 (현재 디렉토리 기준)
-    vector_path = os.path.join(os.getcwd(), "data", "vectordb")
-    
-    print(f"📂 VectorDB 경로: {vector_path}")
-    print(f"📂 경로 존재: {os.path.exists(vector_path)}")
-    
-    if not os.path.exists(vector_path):
-        print("❌ VectorDB 경로가 존재하지 않습니다.")
-        return
-    
-    vectorstore = Chroma(
-        collection_name="youth_policies",
-        embedding_function=embeddings,
-        persist_directory=vector_path
-    )
-    
-    # 문서 로드 (BM25를 위해 필요)
-    all_docs = vectorstore.get()
-    doc_count = len(all_docs.get('documents', []))
-    print(f"✅ ChromaDB 로드 완료: {doc_count}개 문서")
-    
-    if not all_docs or not all_docs.get('documents'):
-        print("❌ VectorDB에 문서가 없습니다.")
-        return
-    
-    documents = []
-    if all_docs and 'documents' in all_docs:
-        for i, doc_text in enumerate(all_docs['documents']):
-            if doc_text and doc_text.strip():
-                metadata = all_docs['metadatas'][i] if 'metadatas' in all_docs else {}
-                documents.append(Document(page_content=doc_text, metadata=metadata))
-    
-    print(f"✅ Document 객체 생성 완료: {len(documents)}개")
-    
-    # 고급 RAG 파이프라인 생성
-    rag = AdvancedRAGPipeline(
-        documents=documents,
-        vectorstore=vectorstore,
-        llm=llm,
-        enable_router=True,
-        enable_multi_query=True,
-        enable_ensemble=True,
-        enable_rrf=True,
-        enable_memory=True,
-        enable_region_filter=True,
-        bm25_k=5,
-        vector_k=10,
-        bm25_weight=0.4,
-        vector_weight=0.6
-    )
-    
-    # 테스트 쿼리
-    queries = ["전국 월세 정책"]
-    
-    for query in queries:
-        result = rag.query(query)
-        print(f"\n질문: {query}")
-        print(f"\n📄전체 답변:\n{result['answer']}")
-        if 'summary' in result:
-            print(f"\n✔️요약:\n{result['summary']}")
-        print(f"\n문서 수: {result['metadata'].get('num_docs_retrieved', 0)}")
-        print(f"지역 필터: {result['metadata'].get('region_filter', 'None')}")
-        print("-" * 60)
-
-
-if __name__ == "__main__":
-    main()
