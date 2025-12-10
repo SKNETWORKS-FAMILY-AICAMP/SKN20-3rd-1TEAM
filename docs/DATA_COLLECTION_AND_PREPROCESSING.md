@@ -121,50 +121,73 @@
 #### Step 2: 코드 값 변환
 API의 코드 값을 의미있는 텍스트로 변환:
 
-**제공기관그룹 (`pvsnInstGroupCd`)**
+**제공기관그룹 (`pvsnInstGroupCd` → `재공기관그룹`)**
 ```python
-{
+PVSN_INST_GROUP = {
     "0054001": "중앙부처",
-    "0054002": "지자체",
-    "0054003": "공공기관",
-    "0054010": "제한없음"
+    "0054002": "지자체"
 }
 ```
 
-**정책제공방법 (`plcyPvsnMthdCd`)**
+**정책제공방법 (`plcyPvsnMthdCd` → `정책제공방법`)**
 ```python
-{
-    "0042001": "현금",
-    "0042002": "현물",
-    "0042003": "서비스",
+PLCY_PVSN_METHOD = {
+    "0042001": "인프라 구축",
+    "0042002": "프로그램",
+    "0042003": "직접대출",
+    "0042004": "공공기관",
+    "0042005": "계약(위탁운영)",
     "0042006": "보조금",
-    "0042010": "제한없음"
+    "0042007": "대출보증",
+    "0042008": "공적보험",
+    "0042009": "조세지출",
+    "0042010": "바우처",
+    "0042011": "정보제공",
+    "0042012": "경제적 규제",
+    "0042013": "기타"
 }
 ```
 
-**혼인상태 (`mrgSttsCd`)**
+**혼인상태 (`mrgSttsCd` → `혼인상태`)**
 ```python
-{
-    "0055001": "미혼",
-    "0055002": "기혼",
+MARRIAGE_STATUS = {
+    "0055001": "기혼",
+    "0055002": "미혼",
     "0055003": "제한없음"
 }
 ```
+**기타 코드 매핑 변수**:
+- `PLCY_APPROVAL_STATUS`: 정책승인상태 (신청/승인/반려/임시저장)
+- `APPLY_PERIOD_TYPE`: 신청기간구분 (특정기간/상시/마감)
+- `BIZ_PERIOD_TYPE`: 사업기간구분 (특정기간/상시/마감)
+- `INCOME_CONDITION`: 소득조건 (무관/연소득/기타)
+- `MAJOR_REQUIREMENT`: 전공요건 (인문계열/사회계열/상경계열/이학계열/공학계열/예체능계열/농산업계열/기타/제한없음)
+- `JOB_REQUIREMENT`: 취업상태 (재직자/자영업자/미취업자/프리랜서/일용근로자/(예비)창업자/단기근로자/영농종사자/기타/제한없음)
+- `SCHOOL_REQUIREMENT`: 학력요건 (고졸 미만/고교 재학/고졸 예정/고교 졸업/대학 재학/대졸 예정/대학 졸업/석·박사/기타/제한없음)
+- `SPECIAL_REQUIREMENT`: 특화분야 (중소기업/여성/기초생활수급자/한부모가정/장애인/농업인/군인/지역인재/기타/제한없음)
 
-#### Step 3: 지역 정보 추출
-기관명에서 지역 추출 로직:
+#### Step 3: 지역 코드 → 한글 변환
+법정동코드를 한글 지역명으로 변환:
+
+**법정동코드 매핑 파일**: `data/processed/법정동코드 수정.txt`
+- **총 280개** 시/도, 시/군/구 매핑 테이블
+- 형식: 법정동코드 (TAB) 법정동명
 
 ```python
-# 예시
-"경상남도 남해군 전략사업단" → "경상남도 남해군"
-"서울특별시 강남구청" → "서울특별시 강남구"
-"고용노동부" → "전국"
+# 변환 예시
+"11110" → "서울특별시 종로구"
+"26110" → "부산광역시 중구"
+"48170" → "경상남도 남해군"
+
+# 다중 지역 코드 처리
+"11110,11140,11170" → "서울특별시 종로구, 서울특별시 중구, 서울특별시 용산구"
 ```
 
-**지역 매핑 규칙**:
-- 시/도 + 시/군/구 조합
-- 중앙부처 → "전국"
-- 광역시 → "광역시명 + 구명"
+**변환 프로세스**:
+1. 원본 JSON의 `zipCd` 필드 (쉼표로 구분된 법정동코드)
+2. 각 코드를 법정동코드 매핑 테이블과 매칭
+3. 한글 지역명으로 변환하여 `지역` 필드 생성
+4. 여러 코드가 있을 경우 쉼표로 연결
 
 #### Step 4: 데이터 검증 및 정제
 ```python
@@ -389,162 +412,24 @@ null_value → "정보없음"
 형식 오류 → 원본 유지
 ```
 
-### 6.3 에러 처리
-```python
-# API 호출 실패
-try:
-    response = requests.get(...)
-except RequestException:
-    # 재시도 로직 (최대 3회)
-    # 실패 시 에러 로그
-
-# JSON 파싱 오류
-try:
-    data = response.json()
-except JSONDecodeError:
-    # 원본 텍스트 저장
-    # 에러 로그 기록
-
-# 파일 저장 실패
-try:
-    with open(...) as f:
-        json.dump(...)
-except IOError:
-    # 대체 경로 시도
-    # 에러 로그
-```
-
 ---
+## 7. 참고 자료
 
-## 7. 업데이트 프로세스
-
-### 7.1 데이터 갱신 주기
-- **권장 주기**: 월 1회
-- **이유**: 정책 변경, 신규 정책 추가
-
-### 7.2 갱신 절차
-```bash
-# 1. API 데이터 수집
-python notebooks/fetch_api_data.py
-
-# 2. 전처리 (수동 또는 스크립트)
-# 현재는 수동 전처리 진행
-
-# 3. 벡터 DB 재구축
-python notebooks/build_vectordb.py
-
-# 4. 검증
-# - 문서 수 확인
-# - 샘플 검색 테스트
-# - 메타데이터 검증
-```
-
-### 7.3 백업 전략
-```bash
-# 데이터 백업 (갱신 전)
-data/
-  ├── raw/
-  │   └── youth_policies_api_YYYYMMDD.json (백업)
-  ├── processed/
-  │   └── youth_policies_filtered_YYYYMMDD.json (백업)
-  └── vectordb/
-      └── backup_YYYYMMDD/ (전체 백업)
-```
-
----
-
-## 8. 문제 해결 (Troubleshooting)
-
-### 8.1 API 호출 실패
-**증상**: API 응답 없음, 타임아웃
-**해결**:
-```python
-# 1. API Key 확인
-print(os.getenv('YOUTH_POLICY_API'))
-
-# 2. 네트워크 확인
-curl https://www.youthcenter.go.kr/go/ythip/getPlcy
-
-# 3. Timeout 증가
-requests.get(..., timeout=120)
-```
-
-### 8.2 JSON 파싱 오류
-**증상**: JSONDecodeError
-**해결**:
-```python
-# 1. 응답 내용 확인
-print(response.text[:1000])
-
-# 2. 인코딩 확인
-response.encoding = 'utf-8'
-
-# 3. Content-Type 확인
-print(response.headers.get('Content-Type'))
-```
-
-### 8.3 벡터 DB 로드 실패
-**증상**: 0개 문서 로드
-**해결**:
-```python
-# 1. 경로 확인
-print(os.path.exists(vectordb_path))
-
-# 2. 파일 존재 확인
-ls data/vectordb/
-
-# 3. 권한 확인
-chmod -R 755 data/vectordb/
-```
-
----
-
-## 9. 참고 자료
-
-### 9.1 관련 파일
+### 7.1 관련 파일
 - `notebooks/fetch_api_data.py`: 데이터 수집 스크립트
 - `notebooks/build_vectordb.py`: 벡터 DB 구축 스크립트
 - `data/raw/youth_policies_api.json`: 원본 데이터
 - `data/processed/youth_policies_filtered_kr_revised.json`: 전처리 데이터
 
-### 9.2 외부 문서
+### 7.2 외부 문서
 - [온통청년 API 문서](https://www.youthcenter.go.kr/openapi/openApiInfo.do)
 - [ChromaDB 공식 문서](https://docs.trychroma.com/)
 - [OpenAI Embeddings](https://platform.openai.com/docs/guides/embeddings)
 
-### 9.3 버전 정보
+### 7.3 버전 정보
 - Python: 3.11+
 - ChromaDB: 0.4.0+
 - OpenAI: 1.0.0+
 - Requests: 2.31.0+
 
 ---
-
-## 10. 체크리스트
-
-### 데이터 수집 체크리스트
-- [ ] API Key 설정 확인
-- [ ] 네트워크 연결 확인
-- [ ] 충분한 디스크 공간 (최소 50MB)
-- [ ] Python 환경 활성화
-- [ ] 의존성 패키지 설치
-
-### 전처리 체크리스트
-- [ ] 원본 데이터 백업
-- [ ] 필드 매핑 규칙 확인
-- [ ] 코드 값 변환 테이블 확인
-- [ ] 지역 추출 로직 검증
-- [ ] Null 값 처리 규칙 적용
-
-### 벡터화 체크리스트
-- [ ] OpenAI API Key 설정
-- [ ] 충분한 디스크 공간 (최소 100MB)
-- [ ] 벡터 DB 경로 확인
-- [ ] 임베딩 모델 선택
-- [ ] 문서 수 검증 (3,550개)
-
----
-
-**작성일**: 2025-12-10  
-**작성자**: AI Assistant  
-**버전**: 1.0

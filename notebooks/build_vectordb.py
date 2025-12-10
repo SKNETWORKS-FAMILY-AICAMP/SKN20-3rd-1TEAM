@@ -29,12 +29,10 @@ def load_preprocessed_data(filepath):
     Returns:
         list: 정책 데이터 리스트
     """
-    print(f"📂 데이터 로드 중: {filepath}")
     
     with open(filepath, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    print(f"✅ 총 {len(data)}개의 정책 데이터 로드 완료")
     return data
 
 
@@ -273,7 +271,6 @@ def get_embeddings_batch(texts, model="text-embedding-3-small"):
             if attempt < max_retries - 1:
                 import time
                 wait_time = (attempt + 1) * 2
-                print(f"  ⚠️  배치 API 오류, {wait_time}초 후 재시도... ({attempt + 1}/{max_retries})")
                 time.sleep(wait_time)
             else:
                 raise e
@@ -314,8 +311,7 @@ def get_embedding(text, model="text-embedding-3-small"):
         except Exception as e:
             if attempt < max_retries - 1:
                 import time
-                wait_time = (attempt + 1) * 2  # 2, 4, 6초 대기
-                print(f"  ⚠️  API 오류, {wait_time}초 후 재시도... ({attempt + 1}/{max_retries})")
+                wait_time = (attempt + 1) * 2
                 time.sleep(wait_time)
             else:
                 raise e
@@ -329,17 +325,11 @@ def build_chromadb(policies, db_path="../data/vectordb"):
         policies: 정책 데이터 리스트
         db_path: DB 저장 경로
     """
-    print("\n" + "=" * 70)
-    print("🔨 ChromaDB 구축 시작")
-    print("=" * 70)
-    
     # DB 디렉토리 생성
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(current_dir)
     db_full_path = os.path.join(project_root, "data", "vectordb")
     os.makedirs(db_full_path, exist_ok=True)
-    
-    print(f"📁 DB 저장 경로: {db_full_path}")
     
     # ChromaDB 클라이언트 초기화
     chroma_client = chromadb.PersistentClient(path=db_full_path)
@@ -347,7 +337,6 @@ def build_chromadb(policies, db_path="../data/vectordb"):
     # 기존 컬렉션 삭제 (있으면)
     try:
         chroma_client.delete_collection(name="youth_policies")
-        print("🗑️  기존 컬렉션 삭제")
     except:
         pass
     
@@ -359,7 +348,6 @@ def build_chromadb(policies, db_path="../data/vectordb"):
         if os.path.isdir(item_path) and '-' in item:
             try:
                 shutil.rmtree(item_path)
-                print(f"🗑️  세그먼트 폴더 삭제: {item}")
             except:
                 pass
     
@@ -368,8 +356,6 @@ def build_chromadb(policies, db_path="../data/vectordb"):
         name="youth_policies",
         metadata={"description": "온통청년 정책 데이터"}
     )
-    
-    print(f"\n📊 총 {len(policies)}개 정책 처리 중...")
     
     # 배치 임베딩 처리를 위한 변수
     embedding_batch_size = 20  # OpenAI API 배치 제한
@@ -382,7 +368,6 @@ def build_chromadb(policies, db_path="../data/vectordb"):
     failed_count = 0
     
     # 1단계: 모든 정책 텍스트 생성
-    print("  📝 정책 텍스트 생성 중...")
     for idx, policy in enumerate(policies, 1):
         try:
             policy_text = create_policy_text(policy)
@@ -434,19 +419,14 @@ def build_chromadb(policies, db_path="../data/vectordb"):
                 '지역범위': policy.get('지역범위', ''),
             })
             all_ids.append(f"policy_{idx}")
-            
-            if idx % 100 == 0:
-                print(f"    {idx}/{len(policies)} ({idx/len(policies)*100:.1f}%)")
                 
         except Exception as e:
-            print(f"  ⚠️  정책 {idx} 텍스트 생성 오류: {e}")
             failed_count += 1
             all_policy_texts.append("청년정책")
             all_metadatas.append({})
             all_ids.append(f"policy_{idx}")
     
     # 2단계: 배치 임베딩 생성
-    print(f"\n  🔮 임베딩 생성 중 (배치 크기: {embedding_batch_size})...")
     all_embeddings = []
     
     for i in range(0, len(all_policy_texts), embedding_batch_size):
@@ -454,9 +434,7 @@ def build_chromadb(policies, db_path="../data/vectordb"):
         try:
             batch_embeddings = get_embeddings_batch(batch_texts)
             all_embeddings.extend(batch_embeddings)
-            print(f"    임베딩: {min(i+embedding_batch_size, len(all_policy_texts))}/{len(all_policy_texts)} ({min(i+embedding_batch_size, len(all_policy_texts))/len(all_policy_texts)*100:.1f}%)")
         except Exception as e:
-            print(f"  ⚠️  배치 {i//embedding_batch_size + 1} 임베딩 오류: {e}")
             # 폴백: 개별 임베딩
             for text in batch_texts:
                 try:
@@ -467,7 +445,6 @@ def build_chromadb(policies, db_path="../data/vectordb"):
                     failed_count += 1
     
     # 3단계: DB에 배치 저장
-    print(f"\n  💾 ChromaDB 저장 중 (배치 크기: {db_batch_size})...")
     for i in range(0, len(all_policy_texts), db_batch_size):
         batch_docs = all_policy_texts[i:i+db_batch_size]
         batch_metas = all_metadatas[i:i+db_batch_size]
@@ -480,77 +457,14 @@ def build_chromadb(policies, db_path="../data/vectordb"):
             ids=batch_ids,
             embeddings=batch_embs
         )
-        print(f"    저장: {min(i+db_batch_size, len(all_policy_texts))}/{len(all_policy_texts)} ({min(i+db_batch_size, len(all_policy_texts))/len(all_policy_texts)*100:.1f}%)")
-    
-    # 텍스트 길이 통계
-    all_docs = collection.get()
-    if all_docs['documents']:
-        avg_text_length = sum([len(d) for d in all_docs['documents']]) / len(all_docs['documents'])
-        max_text_length = max([len(d) for d in all_docs['documents']])
-        min_text_length = min([len(d) for d in all_docs['documents']])
-    else:
-        avg_text_length = max_text_length = min_text_length = 0
-    
-    print("\n" + "=" * 70)
-    print("✅ ChromaDB 구축 완료!")
-    print("=" * 70)
-    print(f"📍 저장 위치: {db_full_path}")
-    print(f"📊 총 저장된 정책 수: {collection.count()}")
-    if failed_count > 0:
-        print(f"⚠️  처리 실패: {failed_count}건")
-    print(f"✅ 성공률: {(len(policies) - failed_count) / len(policies) * 100:.1f}%")
-    print(f"📝 텍스트 길이 - 평균: {avg_text_length:.0f}자, 최대: {max_text_length}자, 최소: {min_text_length}자")
     
     return collection
 
 
-# def test_search(collection, query="취업 지원 정책", top_k=3):
-#     """
-#     벡터 DB 검색 테스트
-    
-#     Args:
-#         collection: ChromaDB 컬렉션
-#         query: 검색 쿼리
-#         top_k: 반환할 결과 수
-#     """
-#     print("\n" + "=" * 70)
-#     print("🔍 검색 테스트")
-#     print("=" * 70)
-#     print(f"질문: {query}\n")
-    
-#     # 쿼리 임베딩 생성
-#     query_embedding = get_embedding(query)
-    
-#     # 유사 문서 검색
-#     results = collection.query(
-#         query_embeddings=[query_embedding],
-#         n_results=top_k
-#     )
-    
-#     print(f"상위 {top_k}개 검색 결과:\n")
-    
-#     for i, (doc, metadata) in enumerate(zip(results['documents'][0], results['metadatas'][0]), 1):
-#         print(f"[{i}] {metadata.get('정책명', 'N/A')}")
-#         print(f"    분야: {metadata.get('중분류', 'N/A')}")
-#         print(f"    담당: {metadata.get('주관기관명', 'N/A')}")
-#         print(f"    연령: {metadata.get('지원최소연령', '0')}세 ~ {metadata.get('지원최대연령', '0')}세")
-#         print(f"    취업: {metadata.get('취업상태', 'N/A')}")
-#         print(f"    내용: {doc[:150]}...")
-#         print()
-
-
 def main():
-    print("=" * 70)
-    print("ChromaDB 벡터 데이터베이스 구축")
-    print("=" * 70)
-    
     # API 키 확인
     if not OPENAI_API_KEY:
-        print("❌ OPENAI_API_KEY가 설정되지 않았습니다.")
-        print("   .env 파일에 OPENAI_API_KEY를 추가해주세요.")
         return
-    
-    print(f"✅ OpenAI API 키 설정 완료")
     
     # 전처리된 데이터 로드
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -558,24 +472,12 @@ def main():
     data_path = os.path.join(project_root, "data", "processed", "youth_policies_filtered_kr_revised.json")
     
     if not os.path.exists(data_path):
-        print(f"❌ 전처리된 데이터를 찾을 수 없습니다: {data_path}")
         return
     
     policies = load_preprocessed_data(data_path)
     
-    # 샘플로 일부만 처리 (테스트용)
-    # policies = policies[:50]  # 처음 50개만 테스트
-    # 전체 데이터 사용
-    print(f"⚠️  전체 {len(policies)}개 정책 처리 - 시간이 걸릴 수 있습니다.")
-    
     # ChromaDB 구축
     collection = build_chromadb(policies)
-    
-    # 검색 테스트
-#     test_search(collection, "취업 지원 프로그램이 있나요?")
-#     test_search(collection, "창업 관련 정책을 알려주세요")
-    
-    print("\n✅ 모든 작업 완료!")
 
 
 if __name__ == "__main__":
