@@ -389,6 +389,7 @@ def build_chromadb(policies, db_path="../data/vectordb"):
                 '상위기관명': policy.get('상위기관명', ''),
                 '상위등록기관명': policy.get('상위등록기관명', ''),
                 '신청URL': policy.get('신청URL', ''),
+                '참고URL1': policy.get('참고URL1', ''),
                 '정책키워드': policy.get('정책키워드', ''),
                 # 신청 관련
                 '신청기간': policy.get('신청기간', ''),
