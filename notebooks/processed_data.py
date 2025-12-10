@@ -355,23 +355,27 @@ def main():
     # 2) 정책 리스트 꺼내기 (result > youthPolicyList)
     policies = raw["result"]["youthPolicyList"]
 
-    processed = []
-    for policy in policies:
-        region_level = assign_region_level(policy)
-        policy["지역범위"] = region_level
-        processed.append(policy)
-
-    # 3) 각 정책을 전처리 포맷으로 변환
+    # 3) 각 정책을 전처리 포맷으로 변환 (한글 "지역" 필드 생성)
     transformed = []
     for p in policies:
         rec = transform_record(p, zip_code_map)
         transformed.append(rec)
 
-    # 4) 리스트 형태로 저장
+    # 4) 전처리된 데이터에 "지역범위" 필드 추가
+    for rec in transformed:
+        region_level = assign_region_level(rec)
+        rec["지역범위"] = region_level
+
+    # 5) 리스트 형태로 저장
     with OUT_PATH.open("w", encoding="utf-8") as f:
         json.dump(transformed, f, ensure_ascii=False, indent=2)
 
     print(f"변환 완료: {len(transformed)}건 -> {OUT_PATH}")
+    
+    # 6) 통계 출력
+    nationwide_count = sum(1 for rec in transformed if rec.get("지역범위") == "전국")
+    regional_count = sum(1 for rec in transformed if rec.get("지역범위") == "지역")
+    print(f"📊 지역범위 통계: 전국 {nationwide_count}개, 지역 {regional_count}개")
 
 
 if __name__ == "__main__":
