@@ -12,7 +12,7 @@
 
 | 나호성 | 강민지 | 이지은 | 조준상 | 홍혜원 |
 |---|---|---|---|---|
-| <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/aa1c4b5b-f271-44bc-8765-fb0717a255fb" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/93140ba3-81e2-4079-8084-8ebab3121a26" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/e7bbde78-a18f-45e3-8db3-ad4464882b93" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/4f23001a-38bb-41bb-ae6f-0ee01d97eebf" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/b133989b-a180-44cc-8fd6-d593e37aee8f" /> |
+| <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/aa1c4b5b-f271-44bc-8765-fb0717a255fb" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/93140ba3-81e2-4079-8084-8ebab3121a26" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/0ac142c1-01de-4130-bcdf-cf7bf026a371" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/4f23001a-38bb-41bb-ae6f-0ee01d97eebf" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/b133989b-a180-44cc-8fd6-d593e37aee8f" /> |
 | (역할) | (역할) | (역할) | (역할) | (역할) |
 
 
