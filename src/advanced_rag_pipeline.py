@@ -548,6 +548,89 @@ class AdvancedRAGPipeline:
 
 
 # ============================================================================
+# 8. Streamlit 연동을 위한 초기화 함수
+# ============================================================================
+
+def initialize_rag_pipeline(vectordb_path: str = None, api_key: str = None):
+    """
+    Streamlit에서 사용할 수 있는 RAG 파이프라인 초기화 함수
+    
+    Args:
+        vectordb_path: VectorDB 경로 (None이면 자동 계산)
+        api_key: OpenAI API Key (None이면 환경변수 사용)
+    
+    Returns:
+        AdvancedRAGPipeline: 초기화된 파이프라인 객체
+    """
+    # API Key 설정
+    if api_key:
+        os.environ['OPENAI_API_KEY'] = api_key
+    else:
+        api_key = os.getenv('OPENAI_API_KEY')
+    
+    if not api_key:
+        raise ValueError('OPENAI_API_KEY가 설정되지 않았습니다.')
+    
+    # LLM 및 임베딩 초기화
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.7,
+        api_key=api_key
+    )
+    
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        api_key=api_key
+    )
+    
+    # VectorDB 경로 설정
+    if vectordb_path is None:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(script_dir)
+        vectordb_path = os.path.join(project_root, "data", "vectordb")
+    
+    if not os.path.exists(vectordb_path):
+        raise FileNotFoundError(f"VectorDB 경로가 존재하지 않습니다: {vectordb_path}")
+    
+    # VectorStore 로드
+    vectorstore = Chroma(
+        collection_name="youth_policies",
+        embedding_function=embeddings,
+        persist_directory=vectordb_path
+    )
+    
+    # 문서 로드 (BM25를 위해 필요)
+    all_docs = vectorstore.get()
+    
+    if not all_docs or not all_docs.get('documents'):
+        raise ValueError("VectorDB에 문서가 없습니다.")
+    
+    documents = []
+    for i, doc_text in enumerate(all_docs['documents']):
+        if doc_text and doc_text.strip():
+            metadata = all_docs['metadatas'][i] if 'metadatas' in all_docs else {}
+            documents.append(Document(page_content=doc_text, metadata=metadata))
+    
+    # RAG 파이프라인 생성
+    rag = AdvancedRAGPipeline(
+        documents=documents,
+        vectorstore=vectorstore,
+        llm=llm,
+        enable_router=True,
+        enable_multi_query=True,
+        enable_ensemble=True,
+        enable_rrf=True,
+        enable_memory=True,
+        bm25_k=5,
+        vector_k=10,
+        bm25_weight=0.4,
+        vector_weight=0.6
+    )
+    
+    return rag
+
+
+# ============================================================================
 # 8. 사용 예시
 # ============================================================================
 
