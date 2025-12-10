@@ -47,7 +47,7 @@
 
 # 시스템 아키텍처
 
-<img src="./assets/architecture.png" width="900" />
+<img src="image\System Architecture.png" width="900" />
 
 **LLM 호출: 총 4회**
 - Router: 질문 검증
