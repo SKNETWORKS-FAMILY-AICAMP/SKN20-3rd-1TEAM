@@ -1,0 +1,147 @@
+/* 1. 배경 & 레이아웃 잡기 */
+body {
+    zoom: 0.87; /* 전체 80% 축소 */
+
+    background-color: #F8FAFB !important;
+    background-image:
+        linear-gradient(#CFD8DC 1px, transparent 1px),
+        linear-gradient(90deg, #CFD8DC 1px, transparent 1px) !important;
+    background-size: 30px 30px !important;
+    
+    /* 화면 최소 높이 확보 */
+    min-height: 100vh !important;
+    margin: 0 !important;
+    
+    /* Flexbox 설정 */
+    display: flex !important;
+    justify-content: center !important; /* 가로(좌우)는 중앙 정렬 */
+    
+    /* ★ [수정] 세로 중앙 정렬을 끄고, 위에서부터 시작하게 함 */
+    align-items: flex-start !important; 
+    
+    overflow: auto !important;
+}
+
+/* 2. 메인 프레임: 노트 박스 */
+#root {
+    width: 100% !important;           
+    max-width: 800px !important;    
+    height: 850px !important;        
+    box-sizing: border-box !important;
+
+    /* ★ [핵심 수정] 위쪽 마진을 줘서 박스를 아래로 내림 */
+    margin-top: 25px !important;
+    /* 아래쪽도 답답하지 않게 여유 공간 줌 */
+    margin-bottom: 60px !important;
+
+    background-color: #ffffff !important;
+    border: 12px solid #4DE8DD !important;
+    border-radius: 16px !important;
+    
+    box-shadow: 0 15px 50px rgba(77, 232, 221, 0.3) !important;
+    
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+}
+
+/* 3. 헤더 */
+header {
+    background-color: rgba(255,255,255,0.9) !important;
+    border-bottom: 1px solid #E0F7FA !important;
+    position: absolute !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 60px !important;
+    z-index: 50 !important;
+}
+
+/* 4. 채팅 영역 */
+main {
+    flex-grow: 1 !important;        
+    overflow-y: auto !important;    
+    
+    padding-top: 80px !important;  
+    
+    /* 입력창이 내려간 만큼 하단 여백 줄임 */
+    padding-bottom: 90px !important;
+    
+    background-color: #ffffff !important;
+    width: 100% !important;
+    
+    scrollbar-width: thin;
+    scrollbar-color: #4DE8DD transparent;
+
+    overflow-anchor: none !important;
+}
+
+/* 스크롤 동작을 즉시 멈추게 설정 (부드러운 이동 끔) */
+html, body, #root, main {
+    scroll-behavior: auto !important;
+}
+
+/* 5. 입력창: 알약 모양 */
+div[role="presentation"], .cl-input-container {
+    position: absolute !important;
+    
+    /* ★ [수정] 바닥에서 10px 위치로 내림 (붕 뜬 공간 삭제) */
+    bottom: 10px !important;
+    
+    left: 0 !important;
+    width: 100% !important;
+
+    background-color: transparent !important;
+    box-shadow: none !important;
+    border-top: none !important;
+    padding: 10px 25px !important;
+    z-index: 100 !important; 
+}
+
+/* 입력 필드 내부 디자인 */
+.cl-textarea {
+    background-color: #F0F9F8 !important;
+    border: 2px solid #E0F2F1 !important;
+    border-radius: 50px !important;
+    padding: 15px 25px !important;
+    color: #333 !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
+    min-height: 50px !important;
+}
+
+/* 6. 전송 버튼 */
+.cl-send-button {
+    background-color: #FF8BA7 !important;
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 50% !important;
+    margin-left: 12px !important;
+    margin-bottom: 0 !important;
+    transition: transform 0.2s;
+}
+.cl-send-button:hover {
+    transform: scale(1.1);
+}
+.cl-send-button svg {
+    fill: white !important;
+}
+
+/* 7. 말풍선 스타일 */
+.cl-message-user .cl-message-content {
+    background-color: #4DE8DD !important;
+    color: #004D40 !important;
+    font-weight: 600 !important;
+    border-radius: 20px 20px 5px 20px !important;
+    box-shadow: 0 2px 5px rgba(77, 232, 221, 0.4) !important;
+}
+
+.cl-message-assistant .cl-message-content {
+    background-color: white !important;
+    border: 1px solid #E0F2F1 !important;
+    color: #333 !important;
+    border-radius: 20px 20px 20px 5px !important;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.03) !important;
+}
+
+/* 유저 아이콘 숨김 */
+.cl-message-user .cl-avatar { display: none !important; }
