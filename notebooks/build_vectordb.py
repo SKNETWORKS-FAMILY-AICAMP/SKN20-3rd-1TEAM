@@ -83,6 +83,15 @@ def create_policy_text(policy):
             region = region[:500] + "..."
         text_parts.append(f"적용지역: {region}")
     
+    if policy.get('지역범위'):
+        region_level = policy['지역범위']
+
+    # 지역 범위(전국/지역)을 자연어 라벨로 추가
+        if region_level == '전국':
+            text_parts.append("지역범위: 전국 (모든 지역 적용)")
+        else:
+            text_parts.append(f"지역범위: 지역 적용 (일부 지역 적용)")
+            
     # 5. 자격 조건 (상세)
     if policy.get('추가자격조건'):
         # 길이 제한 확대 (500자)
@@ -422,6 +431,7 @@ def build_chromadb(policies, db_path="../data/vectordb"):
                 '학력요건': policy.get('학력요건', ''),
                 '특화분야': policy.get('특화분야', ''),
                 '지역': policy.get('지역', ''),
+                '지역범위': policy.get('지역범위', ''),
             })
             all_ids.append(f"policy_{idx}")
             

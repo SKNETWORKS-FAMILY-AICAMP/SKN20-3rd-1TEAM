@@ -1,33 +1,125 @@
-# 시스템 아키텍처
+# 청년·1인 가구 생활복지·지원 챗봇 🤖
+"수천 개의 정책 중 나에게 딱 맞는 혜택, AI가 3초 만에 찾아드립니다!"
 
-```mermaid
-graph LR
-    subgraph Data["📦 데이터 처리"]
-        A[온통청년 API] --> B[Raw JSON<br/>3,550개]
-        B --> C[전처리<br/>한글화+동의어]
-        C --> D[벡터 DB<br/>ChromaDB]
-    end
-    
-    subgraph RAG["🤖 RAG 파이프라인"]
-        E[질문] --> F[Router<br/>검증]
-        F --> G[Multi-Query<br/>3개 생성]
-        G --> H[Ensemble<br/>BM25+Vector]
-        D -.-> H
-        H --> I[RRF<br/>통합 20개]
-        I --> J[Memory<br/>맥락]
-        J --> K[LLM<br/>답변 10개]
-        K --> L[Summary<br/>요약 3-5개]
-    end
-    
-    subgraph UI["🖥️ 인터페이스"]
-        L --> M[Streamlit<br/>웹 UI]
-    end
-    
-    style A fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
-    style D fill:#E74C3C,stroke:#333,stroke-width:2px,color:#fff
-    style F fill:#F39C12,stroke:#333,stroke-width:2px,color:#000
-    style G fill:#F39C12,stroke:#333,stroke-width:2px,color:#000
-    style K fill:#F39C12,stroke:#333,stroke-width:2px,color:#000
-    style L fill:#F39C12,stroke:#333,stroke-width:2px,color:#000
-    style M fill:#27AE60,stroke:#333,stroke-width:2px,color:#fff
-```
+
+🏆 [SKN Family AI캠프] 3차 단위 프로젝트 📅 개발 기간: 2025.XX.XX ~ 2025.12.11
+
+# 개발 팀
+
+## 팀명
+
+## 팀원 소개
+
+| 나호성 | 강민지 | 이지은 | 조준상 | 홍혜원 |
+|---|---|---|---|---|
+| <img src="./assets/team/na.png" width="120" /> | <img src="./assets/team/kang.png" width="120" /> | <img src="./assets/team/lee.png" width="120" /> | <img src="./assets/team/jo.png" width="120" /> | <img src="./assets/team/hong.png" width="120" /> |
+| (역할) | (역할) | (역할) | (역할) | (역할) |
+
+
+# 1. 💡 기획 배경 및 문제 정의 (Why?)
+
+**"청년 정책 수혜율 11%, 몰라서 못 받는 혜택을 찾아드립니다."**
+
+중앙부처와 지자체에서 운영되는 청년 정책은 **3,000**여 개가 넘지만,
+실제 청년들의 정책 수혜율은 약 **11%**에 불과합니다. (출처: 2023 청년정책 실태조사)
+
+저희는 이 격차의 원인을 **구조적 정보 불균형**에서 찾았습니다.
+
+### 문제의 원인
+
+- **정보의 파편화** : 정책이 사이트별로 분산되어 탐색 비용이 큽니다.
+- **비공식 경로 의존** : 청년 10명 중 5명(47%)가 지인·SNS 등에서 정보를 얻어 **정확성 저하 위험**이 존재합니다
+- **복잡한 공고문** : 긴 문서와 행정 용어로 이해 난이도가 높습니다.
+
+### 필요성
+
+사용자 조건(나이·지역·소득 등)에 따라 정책을 **선별·요약·추천**해
+탐색 부담을 줄이고 수혜 기회를 넓히는 도구가 필요합니다.
+
+
+👉 **Solution**<br>
+정책 정보를 통합하고 사용자 조건(나이·지역·소득) 기반으로  
+**맞춤형 정책을 선별·추천해주는 RAG 기반 청년·1인 가구 생활복지/지원 챗봇**을 개발했습니다.
+
+
+### 기대효과
+- **탐색 비용 절감** : 분산된 정책 정보를 한 곳에서 조회·비교
+- **맞춤 매칭 정확도 향상** : 조건 기반으로 '수혜 가능 정책' 중심 추천
+- **공고문 이해 부담 완화** : 공고문 핵심 요약으로 정보 피로도 감소
+
+# 2. 💡 기술적 의사결정 (Technical Decision)
+
+**"단순 검색(Keyword Search)을 넘어, Advanced RAG를 도입한 이유"**
+
+청년 정책 데이터는 법령·공고문 중심의 비정형 텍스트라 **키워드 매칭만으로는 정확한 탐색에 한계**가 있습니다.
+이에 따라 저희는 다음 목표를 중심으로 **고도화된 RAG 파이프라인**을 설계했습니다.
+
+- **환각(Hallucination) 최소화 및 근거 강화** : 외부 정책 데이터를 검색해 근거 기반 답변을 생성
+- **정확도(Accuracy) 향상** : Vector Search + BM25 하이브리드와 Re-ranking으로 검색 품질 개선
+- **데이터 최신성/실현 가능성(Feasibility)**: ‘온통청년’ Open API 기반으로 3,000여 건 정책을 실시간 수집·통합
+
+
+# 3. 🏗️ 시스템 아키텍처
+
+### ⚙️ 파이프라인 상세 스펙 (Pipeline Specifications)
+
+#### 1) **LLM 호출 프로세스 (Total 4 Steps)**<br>
+
+단일 호출 방식의 한계를 극복하기 위해, 단계별로 특화된 프롬프트를 적용한 **4단계 연쇄 추론** 구조를 설계했습니다.
+
+- **Router**: 질문 검증 및 정책 검색 의도 분류  
+- **Multi-Query**: 3가지 관점(구체적·포괄적·유의어)으로 쿼리 확장  
+- **Answer**: 검색 문서를 기반으로 근거 중심 답변 생성  
+- **Summary**: 핵심 요약을 제공해 **UX 개선**
+
+
+#### 2) 하이브리드 검색 전략 (Hybrid Search Strategy)
+정책 데이터 특성상 **고유 명사(정책명)**와 **문맥적 의미(지원 내용)**가 모두 중요하므로, 테스트 기반 가중치를 적용한 **앙상블 검색**을 사용했습니다.
+
+- **Vector Search (Semantic) 60%**: “배고파”, “잘 곳이 필요해” 등 추상적 의도 파악  
+- **BM25 (Keyword) 40%**: “국민취업지원제도” 등 정확한 키워드 매칭 보완  
+
+# 4. ✨ 핵심 기술 및 기능 (Key Features)
+업로드된 코드(advanced_rag_pipeline.py, youth_policy_rag.py)에 구현된 핵심 기술입니다.
+
+## 🔍 1. 정확도 높은 검색 (Advanced RAG)
+- **Hybrid Search**: Vector Search와 BM25 결합으로 검색 정확도 개선  
+- **RRF (Reciprocal Rank Fusion)**: 서로 다른 검색 결과를 재정렬해 상위 문서 품질 향상  
+- **Multi-Query Generation**: 짧고 추상적인 질문을 정책 키워드 관점으로 확장
+
+## 👤 2. 개인화 필터링 (Metadata Filtering)
+- **Profile Extraction**: 대화에서 나이·지역·상태 정보를 실시간 추출  
+- **Pre-Filtering**: 사용자 자격과 불일치하는 정책을 사전 제거해 **환각(Hallucination) 위험 감소**
+
+
+## 🧠 3. 지능형 라우팅 (Query Routing)
+사용자 의도를 정책 검색/일상 대화/정보 요청 등으로 분기해 **불필요한 API 호출 비용을 최소화**했습니다.
+
+## 4. 📈 트러블 슈팅 (Trouble Shooting)
+
+(예시)
+
+문제 1: "청년 월세 지원"을 검색했는데 엉뚱한 지역 정책이 나옴
+
+원인: Vector Search는 의미적 유사성만 볼 뿐, 지역명 같은 고유명사나 숫자(나이) 조건을 정확히 구분하지 못함.
+
+해결: Metadata Filtering을 도입하여 LLM이 추출한 사용자 프로필과 정책의 주관기관, 지원연령 필드를 대조하여 조건에 맞지 않는 문서를 Hard Filtering 처리함.
+
+문제 2: 사용자의 질문이 너무 추상적임 (예: "돈 없어")
+
+원인: 검색 키워드가 명확하지 않아 검색 결과가 좋지 않음.
+
+해결: Query Rewriting 모듈을 추가하여 추상적인 표현을 구체적인 정책 키워드("생계 급여", "긴급 복지")로 변환 후 검색하도록 개선.
+
+# 6. 💻 실행 화면 (Demo)
+(여기에 app.py 실행 스크린샷 또는 GIF 2~3장)
+
+- 메인 화면: 프로필 설정 및 채팅 UI  
+- 대화 예시:  
+  “서울 사는 취준생인데 월세 지원 있어?” → 관련 정책 추천 + 출처/근거 제시
+
+
+# 7. 🛠️ 기술 스택 (Tech Stack)
+
+
+
