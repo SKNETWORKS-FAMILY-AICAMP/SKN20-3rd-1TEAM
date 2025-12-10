@@ -15,6 +15,7 @@ from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, field
 import json
 import warnings
+warnings.filterwarnings('ignore')
 
 # TensorFlow 로그 억제
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -32,7 +33,8 @@ from langchain_core.documents import Document
 try:
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', category=DeprecationWarning)
-        from langchain_classic.retrievers import BM25Retriever, EnsembleRetriever
+        from langchain_classic.retrievers import BM25Retriever
+        from langchain_classic.retrievers import EnsembleRetriever
     RETRIEVERS_AVAILABLE = True
 except ImportError:
     RETRIEVERS_AVAILABLE = False
@@ -105,7 +107,7 @@ class RegionFilter:
 작업:
 1. 질문에서 지역명(시/도, 시/군/구)을 추출
 2. '전체', '전국', '모든', '모두' 등의 키워드가 있으면 '전국'으로 분류
-3. 지역명이 없으면 None 반환
+3. 지역명이 없으면 '전국'으로 분류
 
 응답 형식 (JSON):
 {{
@@ -118,7 +120,7 @@ class RegionFilter:
 예시:
 - "대구 월세 지원" -> {{"has_region": true, "is_national": false, "region_name": "대구", "reason": "대구 지역 명시"}}
 - "전국 청년 정책" -> {{"has_region": true, "is_national": true, "region_name": null, "reason": "전국 키워드 사용"}}
-- "월세 지원" -> {{"has_region": false, "is_national": false, "region_name": null, "reason": "지역 정보 없음"}}
+- "월세 지원" -> {{"has_region": True, "is_national": True, "region_name": null, "reason": "지역 미 명시로 전국 기본 적용"}}
 """),
             ("user", "{query}")
         ])
@@ -135,10 +137,10 @@ class RegionFilter:
             return result
         except Exception as e:
             return {
-                "has_region": False,
-                "is_national": False,
+                "has_region": True,
+                "is_national": True,
                 "region_name": None,
-                "reason": "파싱 실패"
+                "reason": "파싱 실패로 전국 기본 적용"
             }
     
     def build_filter(self, region_info: Dict) -> Optional[Dict]:
@@ -156,9 +158,18 @@ class RegionFilter:
     
     def filter_documents(self, documents: List, region_info: Dict) -> List:
         """검색된 문서를 지역 정보로 후처리 필터링"""
-        if not region_info.get('has_region', False) or region_info.get('is_national', False):
-            return documents
+        # 전국 검색인 경우: 지역범위가 "전국"인 문서만 필터링
+        if region_info.get('is_national', False):
+            filtered_docs = []
+            for doc in documents:
+                if doc.metadata.get('지역범위') == '전국':
+                    filtered_docs.append(doc)
+            return filtered_docs if filtered_docs else documents
         
+        # 특정 지역 검색인 경우: 해당 지역 + 전국 정책 포함
+        if not region_info.get('has_region', False):
+            return documents
+            
         region_name = region_info.get('region_name')
         if not region_name:
             return documents
@@ -172,7 +183,7 @@ class RegionFilter:
             elif region_name in doc.metadata.get('지역', ''):
                 filtered_docs.append(doc)
         
-        return filtered_docs if filtered_docs else documents  # 결과가 없으면 원본 반환
+        return filtered_docs if filtered_docs else documents
     
 
     
@@ -193,14 +204,15 @@ class MultiQueryGenerator:
 
             **원본 질문의 내용이나 조건을 임의로 추가하거나 변경하지 마세요. 오직 검색 관점만 다양화해야 합니다.
 
-            주어진 질문을 3가지 다른 관점의 검색 쿼리로 재구성하세요:
+            주어진 질문을 6가지 다른 관점의 검색 쿼리로 재구성하세요:
 
             1.  **지역(Region) 추출 강제: 사용자가 지역을 언급하면, 해당 지역에 집중해
             2.  **정책 키워드(Policy Keyword): 질문의 **핵심 의도**와 관련된 정책 키워드를 추출하여 관련된 정책만 반환할 것.(월세 -> 월세(유의어 예: 임대료 등 포함) 관련 정책만 반환)
-            1.  **원본 쿼리의 핵심 키워드**를 살린 가장 직관적인 쿼리
-            2.  **유사한 의미 또는 관련 정책명**을 포함하는 쿼리 (동의어 활용)
-            3.  **질문의 목적**을 명확히 드러내는 문장형 쿼리
+            3.  **원본 쿼리의 핵심 키워드**를 살린 가장 직관적인 쿼리
+            4.  **유사한 의미 또는 관련 정책명**을 포함하는 쿼리 (동의어 활용)
+            5.  **지역(Region) 제외 강제: 지역 정보를 제외하고 전국 단위로 검색할 것.
 
+           
             각 쿼리는 한 줄로 작성하고, 번호 없이 줄바꿈(\n)으로 구분하세요.""",
             ("user", "{query}")
         ])
@@ -209,8 +221,10 @@ class MultiQueryGenerator:
         """다중 쿼리 생성"""
         try:
             response = self.multi_query_prompt | self.llm | StrOutputParser()
+            print("🔍 다중 쿼리 생성 중...")
             result = response.invoke({"query": query})
-            
+            print(result)
+            print("🔍 다중 쿼리 생성 완료")
             # 쿼리 분리 (줄바꿈 기준)
             queries = [q.strip() for q in result.split('\n') if q.strip()]
             # 원본 쿼리 포함
@@ -490,7 +504,8 @@ class AdvancedRAGPipeline:
         
         # 최종 답변 생성 프롬프트
         self.answer_prompt = ChatPromptTemplate.from_messages([
-            ("system", """당신은 '온통청년 청년정책 전담 챗봇 선배봇'입니다.
+            ("system", """
+당신은 '온통청년 청년정책 전담 챗봇 선배봇'입니다.
 
 역할:
 - 너는 청년 정책(특히 주거·월세·일자리·복지) 정보를, 사용자가 이해하기 쉽게 정리해 주는 선배야.
@@ -508,34 +523,48 @@ class AdvancedRAGPipeline:
    사용자 질문 : {query}
 
 3. 그 다음에 '답변 :'을 쓰고, 정책을 번호를 매겨서 정리한다.
-   - 최소 1개, 최대 3개까지만 가장 핵심적인 정책을 골라 설명한다.
+   - 반드시 검색된 정책이 2개 이상이면 2~3개 모두 번호를 매겨 설명하라.
    - 각 정책은 아래 구조를 따른다.
 
    예시 형식:
 
    답변 :
    1. 정책명 (주체/지역)
-             
-    🔸사업 개요
-        - 사업 기간 : ...
-        - 목적 : ...
+        🔸사업 개요
+            - 사업 기간 : ...
+            - 목적 : ...
+        🔸신청 자격(핵심 요건)
+            - 연령 : ...
+            - 주거 : ...
+            - 소득 : ...
+            - 기타 조건 : ...
+        🔸지원 금액·기간
+            - 월 지원 금액 : ...
+            - 지원 기간 : ...
+        🔸신청 방법(절차)
+            - 어디에 신청 : ...
+            - 어떻게 신청 : ...
 
-    🔸신청 자격(핵심 요건)
-        - 연령 : ...
-        - 주거 : ...
-        - 소득 : ...
-        - 기타 조건 : ...
+   2. 정책명 (주체/지역)
+        🔸사업 개요
+            - 사업 기간 : ...
+            - 목적 : ...
+        🔸신청 자격(핵심 요건)
+            - 연령 : ...
+            - 주거 : ...
+            - 소득 : ...
+            - 기타 조건 : ...
+        🔸지원 금액·기간
+            - 월 지원 금액 : ...
+            - 지원 기간 : ...
+        🔸신청 방법(절차)
+            - 어디에 신청 : ...
+            - 어떻게 신청 : ...
 
-    🔸지원 금액·기간
-        - 월 지원 금액 : ...
-        - 지원 기간 : ...
+   3. 정책명 (주체/지역)
+        ...
 
-    🔸신청 방법(절차)
-        - 어디에 신청 : ...
-        - 어떻게 신청 : ...
-
-
-    4. 마지막에 '출처' 블록을 적는다.
+4. 마지막에 '출처' 블록을 적는다.
     - 문서 메타데이터(파일명, 페이지 정보 등)가 있으면 최대한 활용해서 작성한다.
     - 예시:
     🔹 출처:
@@ -547,6 +576,7 @@ class AdvancedRAGPipeline:
 - 질문에서 '월세', '보증금', '전세' 등 키워드가 나오면, 주거·월세 관련 정책 위주로 정리할 것.
 - 숫자(지원 금액, 기간, 연령)는 가능한 한 구체적인 값으로 써 줄 것.
 - 줄바꿈이나 문단 구분을 명확히 해서 가독성을 높일 것.
+- 찾은 모든 정책을 다 보여줘
 
 """),
             ("user", """[대화 맥락]
@@ -597,6 +627,7 @@ class AdvancedRAGPipeline:
         region_info = None
         if self.region_filter:
             region_info = self.region_filter.detect_region(query)
+            print(f"🌍 지역 정보 감지: {region_info}")
             metadata_filter = self.region_filter.build_filter(region_info)
         
         # 3. Multi-Query: 다중 쿼리 생성
@@ -626,6 +657,8 @@ class AdvancedRAGPipeline:
         # 6. Region Filter: 지역 기반 후처리 필터링
         if self.region_filter and region_info:
             docs = self.region_filter.filter_documents(docs, region_info)
+            for doc in docs:
+                print(f"📄 포함된 문서: {doc.metadata.get('정책명', '제목 없음')} - 지역: {doc.metadata.get('지역범위','')} ")
         
         # 7. Memory: 대화 맥락 가져오기
         if self.memory:
@@ -633,10 +666,19 @@ class AdvancedRAGPipeline:
         else:
             context = "이전 대화 없음"
         
-        # 8. LLM: 최종 답변 생성
+        # 8. LLM: 최종 답변 생성 (정책명 중복 없이 최대 3개만)
+        seen_titles = set()
+        unique_docs = []
+        for doc in docs:
+            title = doc.metadata.get('정책명', '제목 없음')
+            if title not in seen_titles:
+                seen_titles.add(title)
+                unique_docs.append(doc)
+            if len(unique_docs) >= 3:
+                break
         docs_text = "\n\n".join([
-            f"[정책 {i+1}] {doc.metadata.get('policy_name', '제목 없음')}\n{doc.page_content[:500]}"
-            for i, doc in enumerate(docs[:10])
+            f"[정책 {i+1}] {doc.metadata.get('정책명', '제목 없음')}\n{doc.page_content[:500]}"
+            for i, doc in enumerate(unique_docs)
         ])
         
         try:
@@ -761,3 +803,95 @@ def initialize_rag_pipeline(vectordb_path: str = None, api_key: str = None):
     )
     
     return rag
+
+# ============================================================================
+# 10. Main 함수 (테스트용)
+# ============================================================================
+
+def main():
+    """고급 RAG 파이프라인 테스트"""
+    
+    # 환경 변수 확인
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError('OPENAI_API_KEY가 설정되지 않았습니다.')
+    
+    # LLM 및 임베딩 초기화
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.0,
+        api_key=api_key
+    )
+    
+    embeddings = OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        api_key=api_key
+    )
+    
+    # VectorDB 로드 (현재 디렉토리 기준)
+    vector_path = os.path.join(os.getcwd(), "data", "vectordb")
+    
+    print(f"📂 VectorDB 경로: {vector_path}")
+    print(f"📂 경로 존재: {os.path.exists(vector_path)}")
+    
+    if not os.path.exists(vector_path):
+        print("❌ VectorDB 경로가 존재하지 않습니다.")
+        return
+    
+    vectorstore = Chroma(
+        collection_name="youth_policies",
+        embedding_function=embeddings,
+        persist_directory=vector_path
+    )
+    
+    # 문서 로드 (BM25를 위해 필요)
+    all_docs = vectorstore.get()
+    doc_count = len(all_docs.get('documents', []))
+    print(f"✅ ChromaDB 로드 완료: {doc_count}개 문서")
+    
+    if not all_docs or not all_docs.get('documents'):
+        print("❌ VectorDB에 문서가 없습니다.")
+        return
+    
+    documents = []
+    if all_docs and 'documents' in all_docs:
+        for i, doc_text in enumerate(all_docs['documents']):
+            if doc_text and doc_text.strip():
+                metadata = all_docs['metadatas'][i] if 'metadatas' in all_docs else {}
+                documents.append(Document(page_content=doc_text, metadata=metadata))
+    
+    print(f"✅ Document 객체 생성 완료: {len(documents)}개")
+    
+    # 고급 RAG 파이프라인 생성
+    rag = AdvancedRAGPipeline(
+        documents=documents,
+        vectorstore=vectorstore,
+        llm=llm,
+        enable_router=True,
+        enable_multi_query=True,
+        enable_ensemble=True,
+        enable_rrf=True,
+        enable_memory=True,
+        enable_region_filter=True,
+        bm25_k=5,
+        vector_k=10,
+        bm25_weight=0.4,
+        vector_weight=0.6
+    )
+    
+    # 테스트 쿼리
+    queries = ["대구 월세 지원"]
+    
+    for query in queries:
+        result = rag.query(query)
+        print(f"\n질문: {query}")
+        print(f"\n📄전체 답변:\n{result['answer']}")
+        if 'summary' in result:
+            print(f"\n✔️ 요약:\n{result['summary']}")
+        print(f"\n문서 수: {result['metadata'].get('num_docs_retrieved', 0)}")
+        print(f"지역 필터: {result['metadata'].get('region_filter', 'None')}")
+        print("-" * 60)
+
+
+if __name__ == "__main__":
+    main()

@@ -226,5 +226,18 @@ streamlit run src/streamlit_app.py
 
 ## 10. Review
 
+![Python3](https://img.shields.io/badge/Python-informational)
+![LangChain](https://img.shields.io/badge/LangChain-informational)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-informational)
+![EnsembleRetrieval](https://img.shields.io/badge/EnsembleRetrieval-informational)
+![RRF](https://img.shields.io/badge/RRF-informational)
+![LLM](https://img.shields.io/badge/LLM-informational)
+![Streamlit](https://img.shields.io/badge/Streamlit-informational)
+
+
+
+
+
+
 
 
