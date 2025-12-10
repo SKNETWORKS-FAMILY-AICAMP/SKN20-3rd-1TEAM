@@ -1,0 +1,31 @@
+{
+    "custom_fonts": [],
+    "variables": {
+        "light": {
+            "--font-sans": "'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
+            "--background": "210 20% 98%",
+            "--foreground": "195 40% 15%",
+            "--primary": "175 70% 41%",
+            "--primary-foreground": "0 0% 100%",
+            "--muted": "195 20% 96%",
+            "--muted-foreground": "195 10% 45%",
+            "--border": "195 20% 90%",
+            "--input": "0 0% 100%",
+            "--ring": "175 70% 41%",
+            "--radius": "1rem"
+        },
+        "dark": {
+            "--font-sans": "'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif",
+            "--background": "200 15% 15%",
+            "--foreground": "195 20% 98%",
+            "--primary": "175 70% 41%",
+            "--primary-foreground": "0 0% 100%",
+            "--muted": "200 15% 25%",
+            "--muted-foreground": "195 20% 70%",
+            "--border": "200 15% 25%",
+            "--input": "200 15% 25%",
+            "--ring": "175 70% 41%",
+            "--radius": "1rem"
+        }
+    }
+}
