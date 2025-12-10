@@ -4,7 +4,7 @@
 
 import streamlit as st
 import os
-from advanced_rag_pipeline import initialize_rag_pipeline
+from advanced_rag import initialize_rag_pipeline
 
 # ========================================
 # CSS 스타일
