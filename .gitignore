@@ -33,3 +33,8 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+
+
+data/vectordb/
+*.sqlite3
+*.db
