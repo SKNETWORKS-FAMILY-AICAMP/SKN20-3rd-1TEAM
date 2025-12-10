@@ -86,39 +86,39 @@
 # 4. ✨ 핵심 기술 및 기능 (Key Features)
 업로드된 코드(advanced_rag_pipeline.py, youth_policy_rag.py)에 구현된 핵심 기술입니다.
 
-## 🔍 1. 정확도 높은 검색 (Advanced RAG)
+### 🔍 1. 정확도 높은 검색 (Advanced RAG)
 - **Hybrid Search**: Vector Search와 BM25 결합으로 검색 정확도 개선  
 - **RRF (Reciprocal Rank Fusion)**: 서로 다른 검색 결과를 재정렬해 상위 문서 품질 향상  
 - **Multi-Query Generation**: 짧고 추상적인 질문을 정책 키워드 관점으로 확장
 
-## 👤 2. 개인화 필터링 (Metadata Filtering)
+### 👤 2. 개인화 필터링 (Metadata Filtering)
 - **Profile Extraction**: 대화에서 나이·지역·상태 정보를 실시간 추출  
 - **Pre-Filtering**: 사용자 자격과 불일치하는 정책을 사전 제거해 **환각(Hallucination) 위험 감소**
 
-## 🧠 3. 지능형 라우팅 (Query Routing)
+### 🧠 3. 지능형 라우팅 (Query Routing)
 사용자 의도를 정책 검색/일상 대화/정보 요청 등으로 분기해 **불필요한 API 호출 비용을 최소화**했습니다.
 
-## 4. 📈 트러블 슈팅 (Trouble Shooting)
+### 4. 📈 트러블 슈팅 (Trouble Shooting)
 
 (예시 - 추가적으로 구체화해서 수정 필요합니다!!)
 
-### 문제 1: 지역을 바꿔서 질문해도 서울·전국 정책이 섞여서 나옴
+#### 문제 1: 지역을 바꿔서 질문해도 서울·전국 정책이 섞여서 나옴
 - **원인**: 쿼리에서 사용자 지역(user_region) 정보를 받았지만, 실제 검색 필터에서 region 조건을 제대로 안 걸어서 전국 정책 + 특정 지역 정책이 한 번에 섞여 반환됨.  
 - **해결**: 벡터 검색 결과에서 metadata["region"] 값을 검사해 사용자 지역과 일치하는 정책만 남기도록 필터 로직 추가함.
 
-### 문제 2: Retriever 결과가 없을 때 전체 파이프라인이 바로 에러로 종료됨.
+#### 문제 2: Retriever 결과가 없을 때 전체 파이프라인이 바로 에러로 종료됨.
 - **원인**: 검색 결과 리스트가 비어 있는데도, 이후 단계에서 docs[0]처럼 인덱싱을 시도해서 IndexError 발생.  
 - **해결**: 검색 결과가 0개일 경우 “관련 정책을 찾지 못했다”는 안전한 답변을 보내거나 기본 안내 문구를 반환하도록 가드 로직 추가함.
 
-### 문제 3: 
+#### 문제 3: 
 - **원인**:  
 - **해결**: 
 
-### 문제 4: 
+#### 문제 4: 
 - **원인**: 
 - **해결**: 
 
-### 문제 5: 
+#### 문제 5: 
 - **원인**: 
 - **해결**: 
 
@@ -178,7 +178,7 @@ Hybrid Search 및 Advanced RAG 적용 결과, 정책 검색 정확도가 유의�
 
 # 9. 🏃‍♂️ 실행 방법
 
-## 1. 환경 설정
+### 1. 환경 설정
 
 ```bash
 # Repository Clone
@@ -192,7 +192,7 @@ pip install -r requirements.txt
 # YOUTH_POLICY_API=...
 ```
 
-## 2. 데이터 구축 (최초 1회)
+### 2. 데이터 구축 (최초 1회)
 ```bash
 # 1. API 데이터 수집 (3,550개 정책)
 python notebooks/fetch_api_data.py
@@ -200,13 +200,13 @@ python notebooks/fetch_api_data.py
 # 2. 벡터 DB 구축 (임베딩 및 인덱싱)
 python notebooks/build_vectordb.py
 ```
-## 3. 어플리케이션 실행
+### 3. 어플리케이션 실행
 ```bash
 streamlit run src/streamlit_app.py
 ```
  --
 
-## 10. Review
+# 10. Review
 
 
 
