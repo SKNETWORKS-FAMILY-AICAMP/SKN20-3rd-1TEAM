@@ -120,7 +120,7 @@
 
 
 # 7. 🛠️ 기술 스택 (Tech Stack)
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white&labelColor=111827)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white&labelColor=111827)\n
 ![LangChain](https://img.shields.io/badge/LangChain-Framework-FF7E32?labelColor=111827)
 ![LangGraph](https://img.shields.io/badge/LangGraph-Workflow%20Orchestration-F97316?labelColor=111827)
 ![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-6B7280?labelColor=111827)
