@@ -31,13 +31,3 @@ graph LR
     style L fill:#F39C12,stroke:#333,stroke-width:2px,color:#000
     style M fill:#27AE60,stroke:#333,stroke-width:2px,color:#fff
 ```
-
-**LLM 호출: 총 4회**
-- Router: 질문 검증
-- Multi-Query: 쿼리 생성
-- Answer: 답변 생성
-- Summary: 요약 생성
-
-**검색 가중치**
-- BM25 (키워드): 40%
-- Vector (의미): 60%
