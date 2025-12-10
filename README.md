@@ -2,18 +2,18 @@
 "수천 개의 정책 중 나에게 딱 맞는 혜택, AI가 3초 만에 찾아드립니다!"
 
 
-🏆 [SKN Family AI캠프] 3차 단위 프로젝트 📅 개발 기간: 2025.XX.XX ~ 2025.12.11
+🏆 [SKN Family AI캠프] 3차 단위 프로젝트 📅 개발 기간: 2025.12.10 ~ 2025.12.11
 
 # 개발 팀
 
-## 팀명
+## 팀명 : 청 바 지 (청춘은 바로 지금)
 
 ## 팀원 소개
 
 | 나호성 | 강민지 | 이지은 | 조준상 | 홍혜원 |
 |---|---|---|---|---|
-| <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/93140ba3-81e2-4079-8084-8ebab3121a26" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/aa1c4b5b-f271-44bc-8765-fb0717a255fb" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/e7bbde78-a18f-45e3-8db3-ad4464882b93" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/4f23001a-38bb-41bb-ae6f-0ee01d97eebf" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/b133989b-a180-44cc-8fd6-d593e37aee8f" /> |
-| (역할) | (역할) | (역할) | (역할) | (역할) |
+| <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/aa1c4b5b-f271-44bc-8765-fb0717a255fb" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/93140ba3-81e2-4079-8084-8ebab3121a26" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/0ac142c1-01de-4130-bcdf-cf7bf026a371" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/4f23001a-38bb-41bb-ae6f-0ee01d97eebf" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/b133989b-a180-44cc-8fd6-d593e37aee8f" /> |
+| 팀장(PM) | 프롬프트엔지니어링 | 프로젝트PD | 프론트엔드 | 슈퍼프로그래머 |
 
 
 # 1. 💡 기획 배경 및 문제 정의 (Why?)
@@ -47,6 +47,8 @@
 - **맞춤 매칭 정확도 향상** : 조건 기반으로 '수혜 가능 정책' 중심 추천
 - **공고문 이해 부담 완화** : 공고문 핵심 요약으로 정보 피로도 감소
 
+---
+
 # 2. 💡 기술적 의사결정 (Technical Decision)
 
 **"단순 검색(Keyword Search)을 넘어, Advanced RAG를 도입한 이유"**
@@ -58,6 +60,7 @@
 - **정확도(Accuracy) 향상** : Vector Search + BM25 하이브리드와 Re-ranking으로 검색 품질 개선
 - **데이터 최신성/실현 가능성(Feasibility)**: ‘온통청년’ Open API 기반으로 3,000여 건 정책을 실시간 수집·통합
 
+---
 
 # 3. 🏗️ 시스템 아키텍처
 
@@ -72,12 +75,13 @@
 - **Answer**: 검색 문서를 기반으로 근거 중심 답변 생성  
 - **Summary**: 핵심 요약을 제공해 **UX 개선**
 
-
 #### 2) 하이브리드 검색 전략 (Hybrid Search Strategy)
 정책 데이터 특성상 **고유 명사(정책명)**와 **문맥적 의미(지원 내용)**가 모두 중요하므로, 테스트 기반 가중치를 적용한 **앙상블 검색**을 사용했습니다.
 
 - **Vector Search (Semantic) 60%**: “배고파”, “잘 곳이 필요해” 등 추상적 의도 파악  
 - **BM25 (Keyword) 40%**: “국민취업지원제도” 등 정확한 키워드 매칭 보완  
+
+---
 
 # 4. ✨ 핵심 기술 및 기능 (Key Features)
 업로드된 코드(advanced_rag_pipeline.py, youth_policy_rag.py)에 구현된 핵심 기술입니다.
@@ -90,7 +94,6 @@
 ## 👤 2. 개인화 필터링 (Metadata Filtering)
 - **Profile Extraction**: 대화에서 나이·지역·상태 정보를 실시간 추출  
 - **Pre-Filtering**: 사용자 자격과 불일치하는 정책을 사전 제거해 **환각(Hallucination) 위험 감소**
-
 
 ## 🧠 3. 지능형 라우팅 (Query Routing)
 사용자 의도를 정책 검색/일상 대화/정보 요청 등으로 분기해 **불필요한 API 호출 비용을 최소화**했습니다.
@@ -111,15 +114,125 @@
 
 해결: Query Rewriting 모듈을 추가하여 추상적인 표현을 구체적인 정책 키워드("생계 급여", "긴급 복지")로 변환 후 검색하도록 개선.
 
-# 6. 💻 실행 화면 (Demo)
+---
+
+# 4. ✨ 핵심 기술 및 기능 (Key Features)
+업로드된 코드(advanced_rag_pipeline.py, youth_policy_rag.py)에 구현된 핵심 기술입니다.
+
+## 🔍 1. 정확도 높은 검색 (Advanced RAG)
+- **Hybrid Search**: Vector Search와 BM25 결합으로 검색 정확도 개선  
+- **RRF (Reciprocal Rank Fusion)**: 서로 다른 검색 결과를 재정렬해 상위 문서 품질 향상  
+- **Multi-Query Generation**: 짧고 추상적인 질문을 정책 키워드 관점으로 확장
+
+## 👤 2. 개인화 필터링 (Metadata Filtering)
+- **Profile Extraction**: 대화에서 나이·지역·상태 정보를 실시간 추출  
+- **Pre-Filtering**: 사용자 자격과 불일치하는 정책을 사전 제거해 **환각(Hallucination) 위험 감소**
+
+
+## 🧠 3. 지능형 라우팅 (Query Routing)
+사용자 의도를 정책 검색/일상 대화/정보 요청 등으로 분기해 **불필요한 API 호출 비용을 최소화**했습니다.
+
+---
+
+# 5. 📈 트러블 슈팅 (Trouble Shooting)
+
+(예시 - 추가적으로 구체화해서 수정 필요합니다!!)
+
+### 문제 1: "청년 월세 지원"을 검색했는데 엉뚱한 지역 정책이 나옴
+- **원인**: Vector Search는 의미 유사성 중심이라 지역·연령 조건을 정교하게 구분하기 어려움  
+- **해결**: **Metadata Filtering** 도입 후 사용자 프로필과 정책 자격 요건을 대조하여  
+  조건 불일치 문서를 **Hard Filtering** 처리  
+
+### 문제 2: 사용자의 질문이 너무 추상적임 (예: "돈 없어")
+- **원인**: 검색 쿼리가 불명확해 검색 결과 품질 저하  
+- **해결**: **Query Rewriting** 모듈을 추가하여  
+  추상 표현을 구체 정책 키워드(“생계 급여”, “긴급 복지”)로 변환 후 검색 
+
+---
+
+# 6. 📊 성능 평가 및 테스트 결과 (Performance)
+
+총 **34개 테스트 케이스**를 수행해 기능·성능·안정성을 검증했습니다.  
+Hybrid Search 및 Advanced RAG 적용 결과, 정책 검색 정확도가 유의미하게 향상되었습니다.
+
+| 평가지표 | 목표치 | 달성 결과 | 비고 |
+|---|---:|---:|---|
+| **검색 정확도** | 80% | **85~90%** | Hybrid Search 적용 후 향상 |
+| **평균 응답 시간** | 10초 이내 | **9.28초** | LLM 호출 최적화 여지 |
+| **사용자 만족도** | 4.0/5.0 | **4.4/5.0** | 10명 대상 UAT |
+| **시스템 안정성** | 99% | **100%** | 결함 0건 |
+
+---
+
+# 7. 🚀 기대 효과
+
+- **정보 탐색 시간 단축**: 분산된 정책을 질문 한 번으로 조건 맞춤 탐색  
+- **행정 효율성 증대**: 반복 문의 자동화로 담당자는 심층 상담에 집중  
+- **정책 체감도 향상**: 개인 조건 기반 추천으로 **1:1 맞춤형 안내 경험** 제공  
+
+---
+
+# 8. 💻 실행 화면 (Demo)
 (여기에 app.py 실행 스크린샷 또는 GIF 2~3장)
 
 - 메인 화면: 프로필 설정 및 채팅 UI  
 - 대화 예시:  
   “서울 사는 취준생인데 월세 지원 있어?” → 관련 정책 추천 + 출처/근거 제시
 
+---
 
-# 7. 🛠️ 기술 스택 (Tech Stack)
+# 9. 🛠️ 기술 스택 (Tech Stack)
+
+| 구분 | 기술 | 상세 |
+|---|---|---|
+| **Language** | Python | 3.11+ |
+| **LLM** | OpenAI | GPT-4o-mini |
+| **Embedding** | OpenAI | text-embedding-3-small |
+| **Framework** | LangChain | RAG 파이프라인 구성(라우팅, 멀티쿼리, 리랭킹 연동) |
+| **Vector DB** | ChromaDB | 정책 문서 임베딩 저장/검색 |
+| **Retriever** | BM25 + Vector | 하이브리드 검색 구성 |
+| **Re-ranking/Fusion** | RRF | 검색 결과 재정렬로 상위 문서 품질 향상 |
+| **Web UI** | Chainlit | 사용자 프로필 입력 + 정책 Q&A 챗 UI |
+| **Data Source** | 온통청년 Open API | 전국 단위 청년 정책 실시간 수집·통합 |
+| **ETL/Processing** | Pandas | 데이터 정제/구조화 |
+| **Environment** | dotenv | API Key/환경변수 관리 |
+| **Version Control** | Git/GitHub/Discord | 협업 및 배포 관리 |
+
+> 필요 시 `requirements.txt`에 사용 버전을 명시해 재현성을 강화했습니다.
+> 
+---
+
+# 10. 🏃‍♂️ 실행 방법
+
+## 1. 환경 설정
+
+```bash
+# Repository Clone
+git clone [레포지토리 주소]
+
+# Install Dependencies
+pip install -r requirements.txt
+
+# Environment Setup (.env 파일 생성)
+# OPENAI_API_KEY=sk-...
+# YOUTH_POLICY_API=...
+```
+
+## 2. 데이터 구축 (최초 1회)
+```bash
+# 1. API 데이터 수집 (3,550개 정책)
+python notebooks/fetch_api_data.py
+
+# 2. 벡터 DB 구축 (임베딩 및 인덱싱)
+python notebooks/build_vectordb.py
+```
+## 3. 어플리케이션 실행
+```bash
+streamlit run src/streamlit_app.py
+```
+ --
+
+## 11. Review
 
 
 
