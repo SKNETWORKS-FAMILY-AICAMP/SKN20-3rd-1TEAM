@@ -105,7 +105,7 @@ class RegionFilter:
 작업:
 1. 질문에서 지역명(시/도, 시/군/구)을 추출
 2. '전체', '전국', '모든', '모두' 등의 키워드가 있으면 '전국'으로 분류
-3. 지역명이 없으면 None 반환
+3. 지역명이 없으면 '전국'으로 분류
 
 응답 형식 (JSON):
 {{
@@ -118,7 +118,7 @@ class RegionFilter:
 예시:
 - "대구 월세 지원" -> {{"has_region": true, "is_national": false, "region_name": "대구", "reason": "대구 지역 명시"}}
 - "전국 청년 정책" -> {{"has_region": true, "is_national": true, "region_name": null, "reason": "전국 키워드 사용"}}
-- "월세 지원" -> {{"has_region": false, "is_national": false, "region_name": null, "reason": "지역 정보 없음"}}
+- "월세 지원" -> {{"has_region": True, "is_national": True, "region_name": null, "reason": "지역 미 명시로 전국 기본 적용"}}
 """),
             ("user", "{query}")
         ])
@@ -135,10 +135,10 @@ class RegionFilter:
             return result
         except Exception as e:
             return {
-                "has_region": False,
-                "is_national": False,
+                "has_region": True,
+                "is_national": True,
                 "region_name": None,
-                "reason": "파싱 실패"
+                "reason": "파싱 실패로 전국 기본 적용"
             }
     
     def build_filter(self, region_info: Dict) -> Optional[Dict]:
@@ -156,9 +156,18 @@ class RegionFilter:
     
     def filter_documents(self, documents: List, region_info: Dict) -> List:
         """검색된 문서를 지역 정보로 후처리 필터링"""
-        if not region_info.get('has_region', False) or region_info.get('is_national', False):
-            return documents
+        # 전국 검색인 경우: 지역범위가 "전국"인 문서만 필터링
+        if region_info.get('is_national', False):
+            filtered_docs = []
+            for doc in documents:
+                if doc.metadata.get('지역범위') == '전국':
+                    filtered_docs.append(doc)
+            return filtered_docs if filtered_docs else documents
         
+        # 특정 지역 검색인 경우: 해당 지역 + 전국 정책 포함
+        if not region_info.get('has_region', False):
+            return documents
+            
         region_name = region_info.get('region_name')
         if not region_name:
             return documents
@@ -172,7 +181,7 @@ class RegionFilter:
             elif region_name in doc.metadata.get('지역', ''):
                 filtered_docs.append(doc)
         
-        return filtered_docs if filtered_docs else documents  # 결과가 없으면 원본 반환
+        return filtered_docs if filtered_docs else documents
     
 
     
@@ -651,10 +660,19 @@ class AdvancedRAGPipeline:
         else:
             context = "이전 대화 없음"
         
-        # 8. LLM: 최종 답변 생성
+        # 8. LLM: 최종 답변 생성 (정책명 중복 없이 최대 3개만)
+        seen_titles = set()
+        unique_docs = []
+        for doc in docs:
+            title = doc.metadata.get('정책명', '제목 없음')
+            if title not in seen_titles:
+                seen_titles.add(title)
+                unique_docs.append(doc)
+            if len(unique_docs) >= 3:
+                break
         docs_text = "\n\n".join([
-            f"[정책 {i+1}] {doc.metadata.get('policy_name', '제목 없음')}\n{doc.page_content[:500]}"
-            for i, doc in enumerate(docs[:10])
+            f"[정책 {i+1}] {doc.metadata.get('정책명', '제목 없음')}\n{doc.page_content[:500]}"
+            for i, doc in enumerate(unique_docs)
         ])
         
         try:
