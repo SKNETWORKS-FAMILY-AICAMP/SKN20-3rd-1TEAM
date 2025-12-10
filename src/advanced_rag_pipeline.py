@@ -511,24 +511,24 @@ class AdvancedRAGPipeline:
         - 질문에서 '월세', '보증금', '전세' 등 키워드가 나오면, 주거·월세 관련 정책 위주로 정리할 것.
         - 숫자(지원 금액, 기간, 연령)는 가능한 한 구체적인 값으로 써 줄 것.
         
-    """
-    
-    ),
-    (
-        "user",
         """
-[대화 맥락]
-{context}
+        
+        ),
+        (
+            "user",
+            """
+    [대화 맥락]
+    {context}
 
-[검색된 정책 정보]
-{documents}
+    [검색된 정책 정보]
+    {documents}
 
-[현재 질문]
-{query}""")
-        ])
+    [현재 질문]
+    {query}""")
+            ])
         
         self.summary_prompt = ChatPromptTemplate.from_messages([
-    (
+        (
         "system",
         """
 당신은 청년 정책 상담 답변을 짧게 요약하는 보조 도우미입니다.
