@@ -2,18 +2,18 @@
 "수천 개의 정책 중 나에게 딱 맞는 혜택, AI가 3초 만에 찾아드립니다!"
 
 
-🏆 [SKN Family AI캠프] 3차 단위 프로젝트 📅 개발 기간: 2025.XX.XX ~ 2025.12.11
+🏆 [SKN Family AI캠프] 3차 단위 프로젝트 📅 개발 기간: 2025.12.10 ~ 2025.12.11
 
 # 개발 팀
 
-## 팀명
+## 팀명 : 청 바 지 (청춘은 바로 지금)
 
 ## 팀원 소개
 
 | 나호성 | 강민지 | 이지은 | 조준상 | 홍혜원 |
 |---|---|---|---|---|
 | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/aa1c4b5b-f271-44bc-8765-fb0717a255fb" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/93140ba3-81e2-4079-8084-8ebab3121a26" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/0ac142c1-01de-4130-bcdf-cf7bf026a371" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/4f23001a-38bb-41bb-ae6f-0ee01d97eebf" /> | <img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/b133989b-a180-44cc-8fd6-d593e37aee8f" /> |
-| (역할) | (역할) | (역할) | (역할) | (역할) |
+| 팀장(PM) | 프롬프트엔지니어링 | 프로젝트PD | 프론트엔드 | 슈퍼프로그래머 |
 
 
 # 1. 💡 기획 배경 및 문제 정의 (Why?)
