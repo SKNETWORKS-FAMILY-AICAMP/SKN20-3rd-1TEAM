@@ -121,7 +121,17 @@
 
 # 7. 🛠️ 기술 스택 (Tech Stack)
 
-![Python 3](https://img.shields.io/badge/Python%203)
+![Python3](https://img.shields.io/badge/Python-3.11-skyblue)
+![LangChain](https://img.shields.io/badge/LangChain-lightpink)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-peach)
+![EnsembleRetrieval](https://img.shields.io/badge/EnsembleRetrieval-limegreen)
+![RRF](https://img.shields.io/badge/RRF-beige)
+![LLM](https://img.shields.io/badge/LLM-lemon)
+![Streamlit](https://img.shields.io/badge/Streamlit-lightbrown)
+
+
+
+
 
 
 
