@@ -47,6 +47,9 @@
 
 # 시스템 아키텍처
 
+<img src="./assets/architecture.png" width="900" />
+
+
 ```mermaid
 graph LR
     subgraph Data["📦 데이터 처리"]
