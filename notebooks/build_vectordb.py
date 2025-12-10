@@ -74,15 +74,24 @@ def create_policy_text(policy):
         text_parts.append(f"키워드: {policy['정책키워드']}")
     
     # 4. 지역 정보 (검색 정확도 향상)
-    if policy.get('주관기관명'):
-        text_parts.append(f"담당기관: {policy['주관기관명']}")
+    if policy.get('지역'):
+        # 지역 정보가 길 수 있으므로 적절히 포함
+        region = policy['지역']
+        # 쉼표로 구분된 지역을 간단히 처리
+        if len(region) > 500:
+            # 너무 길면 앞부분만 (전국 정책일 가능성)
+            region = region[:500] + "..."
+        text_parts.append(f"적용지역: {region}")
     
-    if policy.get('운영기관명'):
-        text_parts.append(f"운영기관: {policy['운영기관명']}")
-    
-    if policy.get('재공기관그룹'):
-        text_parts.append(f"기관분류: {policy['재공기관그룹']}")
-    
+    if policy.get('지역범위'):
+        region_level = policy['지역범위']
+
+    # 지역 범위(전국/지역)을 자연어 라벨로 추가
+        if region_level == '전국':
+            text_parts.append("지역범위: 전국 (모든 지역 적용)")
+        else:
+            text_parts.append(f"지역범위: 지역 적용 (일부 지역 적용)")
+            
     # 5. 자격 조건 (상세)
     if policy.get('추가자격조건'):
         # 길이 제한 확대 (500자)
@@ -389,6 +398,7 @@ def build_chromadb(policies, db_path="../data/vectordb"):
                 '상위기관명': policy.get('상위기관명', ''),
                 '상위등록기관명': policy.get('상위등록기관명', ''),
                 '신청URL': policy.get('신청URL', ''),
+                '참고URL1': policy.get('참고URL1', ''),
                 '정책키워드': policy.get('정책키워드', ''),
                 # 신청 관련
                 '신청기간': policy.get('신청기간', ''),
@@ -420,6 +430,8 @@ def build_chromadb(policies, db_path="../data/vectordb"):
                 '취업상태': policy.get('취업상태', ''),
                 '학력요건': policy.get('학력요건', ''),
                 '특화분야': policy.get('특화분야', ''),
+                '지역': policy.get('지역', ''),
+                '지역범위': policy.get('지역범위', ''),
             })
             all_ids.append(f"policy_{idx}")
             
