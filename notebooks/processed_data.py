@@ -7,7 +7,7 @@ import pandas as pd
 current_dir = Path(__file__).parent if '__file__' in globals() else Path.cwd()
 project_root = current_dir.parent
 IN_PATH = project_root / "data" / "raw" / "youth_policies_api.json"
-OUT_PATH = project_root / "data" / "processed" / "youth_policies_with_region_level.json"
+OUT_PATH = project_root / "data" / "processed" / "youth_policies_filtered_kr_revised.json"
 ZIP_CODE_PATH = project_root / "data" / "processed" / "법정동코드 수정.txt"
 
 
