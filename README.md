@@ -23,13 +23,13 @@ graph LR
         L --> M[Streamlit<br/>웹 UI]
     end
     
-    style A fill:#e1f5ff
-    style D fill:#ffe1e1
-    style F fill:#fff9e1
-    style G fill:#fff9e1
-    style K fill:#fff9e1
-    style L fill:#fff9e1
-    style M fill:#e1ffe1
+    style A fill:#4A90E2,stroke:#333,stroke-width:2px,color:#fff
+    style D fill:#E74C3C,stroke:#333,stroke-width:2px,color:#fff
+    style F fill:#F39C12,stroke:#333,stroke-width:2px,color:#000
+    style G fill:#F39C12,stroke:#333,stroke-width:2px,color:#000
+    style K fill:#F39C12,stroke:#333,stroke-width:2px,color:#000
+    style L fill:#F39C12,stroke:#333,stroke-width:2px,color:#000
+    style M fill:#27AE60,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 **LLM 호출: 총 4회**
