@@ -121,13 +121,13 @@
 
 # 7. 🛠️ 기술 스택 (Tech Stack)
 
-![Python3](https://img.shields.io/badge/Python-#ff71ce)
-![LangChain](https://img.shields.io/badge/LangChain-#01cdfe)
-![ChromaDB](https://img.shields.io/badge/ChromaDB-#05ffa1)
-![EnsembleRetrieval](https://img.shields.io/badge/EnsembleRetrieval-#b967ff)
-![RRF](https://img.shields.io/badge/RRF-#fffb96)
-![LLM](https://img.shields.io/badge/LLM-#ff6f69)
-![Streamlit](https://img.shields.io/badge/Streamlit-#ffcc5c)
+![Python3](https://img.shields.io/badge/Python-informational)
+![LangChain](https://img.shields.io/badge/LangChain-informational)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-informational)
+![EnsembleRetrieval](https://img.shields.io/badge/EnsembleRetrieval-informational)
+![RRF](https://img.shields.io/badge/RRF-informational)
+![LLM](https://img.shields.io/badge/LLM-informational)
+![Streamlit](https://img.shields.io/badge/Streamlit-informational)
 
 
 
