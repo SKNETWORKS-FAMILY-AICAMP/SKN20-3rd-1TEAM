@@ -124,24 +124,6 @@
 
 ---
 
-# 4. ✨ 핵심 기술 및 기능 (Key Features)
-업로드된 코드(advanced_rag_pipeline.py, youth_policy_rag.py)에 구현된 핵심 기술입니다.
-
-## 🔍 1. 정확도 높은 검색 (Advanced RAG)
-- **Hybrid Search**: Vector Search와 BM25 결합으로 검색 정확도 개선  
-- **RRF (Reciprocal Rank Fusion)**: 서로 다른 검색 결과를 재정렬해 상위 문서 품질 향상  
-- **Multi-Query Generation**: 짧고 추상적인 질문을 정책 키워드 관점으로 확장
-
-## 👤 2. 개인화 필터링 (Metadata Filtering)
-- **Profile Extraction**: 대화에서 나이·지역·상태 정보를 실시간 추출  
-- **Pre-Filtering**: 사용자 자격과 불일치하는 정책을 사전 제거해 **환각(Hallucination) 위험 감소**
-
-
-## 🧠 3. 지능형 라우팅 (Query Routing)
-사용자 의도를 정책 검색/일상 대화/정보 요청 등으로 분기해 **불필요한 API 호출 비용을 최소화**했습니다.
-
----
-
 # 5. 📊 성능 평가 및 테스트 결과 (Performance)
 
 총 **34개 테스트 케이스**를 수행해 기능·성능·안정성을 검증했습니다.  
