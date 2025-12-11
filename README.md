@@ -119,11 +119,13 @@ Hybrid Search 및 Advanced RAG 적용 결과, 정책 검색 정확도가 유의�
 ---
 
 # 7. 💻 실행 화면 (Demo)
-(여기에 app.py 실행 스크린샷 또는 GIF 2~3장)
 
-- 메인 화면: 프로필 설정 및 채팅 UI  
-- 대화 예시:  
-  “서울 사는 취준생인데 월세 지원 있어?” → 관련 정책 추천 + 출처/근거 제시
+- 메인 화면
+<img width="882" height="883" alt="Image" src="https://github.com/user-attachments/assets/4084a7fd-3a2b-4d3a-94b4-e68a1215633c" />
+- 검색 화면
+<img width="882" height="883" alt="Image" src="https://github.com/user-attachments/assets/b03f8c81-4b7e-4098-ab42-933ae13aec02" />
+- 결과 화면
+<img width="882" height="888" alt="Image" src="https://github.com/user-attachments/assets/c46933f9-b952-42c8-b84a-58300f7b4673" />
 
 ---
 
