@@ -53,8 +53,8 @@
 이에 따라 저희는 다음 목표를 중심으로 **고도화된 RAG 파이프라인**을 설계했습니다.
 
 - **환각(Hallucination) 최소화 및 근거 강화** : 외부 정책 데이터를 검색해 근거 기반 답변을 생성
-- **정확도(Accuracy) 향상** : Vector Search + BM25 하이브리드와 Re-ranking으로 검색 품질 개선
-- **데이터 최신성/실현 가능성(Feasibility)**: ‘온통청년’ Open API 기반으로 3,000여 건 정책을 실시간 수집·통합
+- **정확도(Accuracy) 향상** : Vector Rertriever + BM25 Retriever로 검색 품질 개선
+- **데이터 최신성/실현 가능성(Feasibility)**: ‘온통청년’ Open API 기반으로 3,550+ 건 정책을 실시간 수집·통합
 
 ---
 # 3. 🏗️ 시스템 아키텍처
