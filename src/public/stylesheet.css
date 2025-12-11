@@ -1,6 +1,5 @@
 /* 1. 배경 & 레이아웃 잡기 */
 body {
-    zoom: 0.87; /* 전체 80% 축소 */
 
     background-color: #F8FAFB !important;
     background-image:
@@ -19,14 +18,16 @@ body {
     /* ★ [수정] 세로 중앙 정렬을 끄고, 위에서부터 시작하게 함 */
     align-items: flex-start !important; 
     
-    overflow: auto !important;
+    /* 전체 페이지 스크롤을 제거하고 루트 내부에서만 스크롤 처리하도록 함 */
+    overflow: hidden !important;
 }
 
 /* 2. 메인 프레임: 노트 박스 */
 #root {
     width: 100% !important;           
     max-width: 800px !important;    
-    height: 850px !important;        
+    /* 뷰포트에 딱 맞게 표시: 상단 마진(25px) + 하단 마진(60px) 합계 85px를 제외한 높이 */
+    height: calc(100vh - 85px) !important;        
     box-sizing: border-box !important;
 
     /* ★ [핵심 수정] 위쪽 마진을 줘서 박스를 아래로 내림 */
