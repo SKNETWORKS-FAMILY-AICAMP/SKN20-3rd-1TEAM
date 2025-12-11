@@ -126,11 +126,11 @@ Hybrid Search 및 Advanced RAG 적용 결과, 정책 검색 정확도가 유의�
 #### 감정 이모티콘·톤 조절이 가능한 답변 스타일
 
 - 메인 화면<br>
-<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/4084a7fd-3a2b-4d3a-94b4-e68a1215633c" /><br><br>
+<img width="1916" height="1026" alt="Image" src="https://github.com/user-attachments/assets/e6ce584b-bb08-4551-a82d-4665a9ae297f" /><br><br>
 - 검색 화면<br>
-<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/b03f8c81-4b7e-4098-ab42-933ae13aec02" /><br><br>
+<img width="1915" height="1030" alt="Image" src="https://github.com/user-attachments/assets/b118701b-ff1b-4ddb-bae0-18e8e516f9e0" /><br><br>
 - 결과 화면<br>
-<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/c46933f9-b952-42c8-b84a-58300f7b4673" /><br>
+<img width="1917" height="1028" alt="Image" src="https://github.com/user-attachments/assets/d05c2ec7-9419-464b-9714-6518cb395860" /><br>
 
 ---
 
