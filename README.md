@@ -53,8 +53,8 @@
 이에 따라 저희는 다음 목표를 중심으로 **고도화된 RAG 파이프라인**을 설계했습니다.
 
 - **환각(Hallucination) 최소화 및 근거 강화** : 외부 정책 데이터를 검색해 근거 기반 답변을 생성
-- **정확도(Accuracy) 향상** : Vector Search + BM25 하이브리드와 Re-ranking으로 검색 품질 개선
-- **데이터 최신성/실현 가능성(Feasibility)**: ‘온통청년’ Open API 기반으로 3,000여 건 정책을 실시간 수집·통합
+- **정확도(Accuracy) 향상** : Vector Rertriever + BM25 Retriever로 검색 품질 개선
+- **데이터 최신성/실현 가능성(Feasibility)**: ‘온통청년’ Open API 기반으로 3,550+ 건 정책을 실시간 수집·통합
 
 ---
 # 3. 🏗️ 시스템 아키텍처
@@ -77,24 +77,24 @@
 ### 4. 📈 트러블 슈팅 (Trouble Shooting)
 
 #### 문제 1: 지역을 바꿔서 질문해도 서울·전국 정책이 섞여서 나옴
-- **원인**: 쿼리에서 사용자 지역(user_region) 정보를 받았지만, 실제 검색 필터에서 region 조건을 제대로 안 걸어서 전국 정책 + 특정 지역 정책이 한 번에 섞여 반환됨.  
-- **해결**: 벡터 검색 결과에서 metadata["region"] 값을 검사해 사용자 지역과 일치하는 정책만 남기도록 필터 로직 추가함.
+- **원인**: 쿼리에서 `user_region` 정보를 받았지만, 실제 검색 필터에서 region 조건을 제대로 안 걸어서 전국 정책 + 특정 지역 정책이 한 번에 섞여 반환됨
+- **해결**: 벡터 검색 결과에서 `metadata["region"]` 값을 검사해 사용자 지역과 일치하는 정책만 남기도록 필터 로직 추가함
 
-#### 문제 2: Retriever 결과가 없을 때 전체 파이프라인이 바로 에러로 종료됨.
-- **원인**: 검색 결과 리스트가 비어 있는데도, 이후 단계에서 docs[0]처럼 인덱싱을 시도해서 IndexError 발생.  
-- **해결**: 검색 결과가 0개일 경우 “관련 정책을 찾지 못했다”는 안전한 답변을 보내거나 기본 안내 문구를 반환하도록 가드 로직 추가함.
+#### 문제 2: `Retriever` 결과가 없을 때 전체 파이프라인이 바로 에러로 종료됨
+- **원인**: 검색 결과 리스트가 비어 있는데도, 이후 단계에서 docs[0]처럼 인덱싱을 시도해서 IndexError 발생. 
+- **해결**: 검색 결과가 0개일 경우 “관련 정책을 찾지 못했다”는 안전한 답변을 보내거나 기본 안내 문구를 반환하도록 가드 로직 추가함
 
 #### 문제 3: 같은 구 이름을 검색했을 때, 다른 시·도의 정책까지 섞여서 나오는 문제
-- **원인**: RAG 파이프라인에서 “사용자가 말한 시/도” 와 “문서 메타데이터의 시/도”를 비교·검증하는 단계가 없었음
-- **해결**: 사용자가 말한 시/도 기준으로 한 번 더 필터링하는 로직”**을 파이프라인에 추가해서 해결
+- **원인**: `RAG pipline`에서 “사용자가 말한 시/도” 와 “문서 `metadata`의 시/도”를 비교·검증하는 단계가 없었음
+- **해결**: 사용자가 말한 시/도 기준으로 한 번 더 필터링하는 로직을 파이프라인에 추가해서 해결
 
-#### 문제 4: self-query로 구현으로 하려 했으나   
-- **원인**: 
-- **해결**: class 상속 함수를 따로 정의를 하여 해결
+#### 문제 4: ChromaDB에서 필터링이 되지 않아 반환값이 나오지 못하는 문제
+- **원인**: SelfQueryRetriever` 사용 시 ChromaDB의  논리연산자 미지원으로 쿼리 에러 발생
+- **해결**: `SelfQueryRetriever`를 비활성화하고,  `RegionFilter` 클래스를 구현하여 로직을 분리하여 해결
 
-#### 문제 5:  ~~~ 오류발생했음.
-- **원인**: 데이터 전처리 과정에서 '등록기관명'등 컬럼 기준으로 잡았었음.?
-- **해결**: 데이터전처리 방식을 바꿨더니?
+#### 문제 5:  대구" 검색 시 벡터 유사도가 높은 "부산 월세 지원"이 상위에 뜨는 문제
+- **원인**: `RegionFilter`가 사용됨
+- **해결**: `RegionFilter` -> `Post-Filtering` 변경 후 타 지역 정책이 뜨지 않음
 
 ---
 
@@ -120,12 +120,17 @@ Hybrid Search 및 Advanced RAG 적용 결과, 정책 검색 정확도가 유의�
 
 # 7. 💻 실행 화면 (Demo)
 
+## UI 화면 기능
+#### 💬 대화 흐름이 한눈에 보이는 ‘메신저형 레이아웃’
+#### 🔎 입력창이 고정되어 있어 언제든 바로 질문 가능
+#### 👩🏻‍💻 감정 이모티콘·톤 조절이 가능한 답변 스타일
+
 - 메인 화면<br>
-<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/4084a7fd-3a2b-4d3a-94b4-e68a1215633c" /><br><br>
+<img width="1916" height="1026" alt="Image" src="https://github.com/user-attachments/assets/e6ce584b-bb08-4551-a82d-4665a9ae297f" /><br><br>
 - 검색 화면<br>
-<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/b03f8c81-4b7e-4098-ab42-933ae13aec02" /><br><br>
+<img width="1915" height="1030" alt="Image" src="https://github.com/user-attachments/assets/b118701b-ff1b-4ddb-bae0-18e8e516f9e0" /><br><br>
 - 결과 화면<br>
-<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/c46933f9-b952-42c8-b84a-58300f7b4673" /><br>
+<img width="1917" height="1028" alt="Image" src="https://github.com/user-attachments/assets/d05c2ec7-9419-464b-9714-6518cb395860" /><br>
 
 ---
 
@@ -150,21 +155,7 @@ Hybrid Search 및 Advanced RAG 적용 결과, 정책 검색 정확도가 유의�
 
 # 9. 🏃‍♂️ 실행 방법
 
-### 1. 환경 설정
-
-```bash
-# Repository Clone
-git clone [레포지토리 주소]
-
-# Install Dependencies
-pip install -r requirements.txt
-
-# Environment Setup (.env 파일 생성)
-# OPENAI_API_KEY=sk-...
-# YOUTH_POLICY_API=...
-```
-
-### 2. 데이터 구축 (최초 1회)
+### 1. 데이터 구축 (최초 1회)
 ```bash
 # 1. API 데이터 수집 (3,550개 정책)
 python notebooks/fetch_api_data.py
@@ -172,9 +163,9 @@ python notebooks/fetch_api_data.py
 # 2. 벡터 DB 구축 (임베딩 및 인덱싱)
 python notebooks/build_vectordb.py
 ```
-### 3. 어플리케이션 실행
+### 2. 어플리케이션 실행
 ```bash
-streamlit run src/streamlit_app.py
+chainlit run chainlit.py
 ```
  --
 
@@ -183,8 +174,8 @@ streamlit run src/streamlit_app.py
 | 이름 | 소감 |
 |---|---|
 | **나호성** | ~ ~ ~ |
-| **강민지** | ~ ~ ~ |
-| **김지은** | ~ ~ ~ |
+| **강민지** | 전통적인 관점으로 보면 "정책" 이라는 행정문서는 복잡하고 정적이어서 걱정이 많았지만, 팀원들과 함께 지역일관성, 정확성, 사용자친화성을 모두 고려하며 RAG,Router,MultiQuery,RRF 등의 기술을 사용하여 실제 사람들에게 도움이 되는 방향으로 잘 녹여낸 것 같아 뿌듯하다. |
+| **이지은** | 3차 프로젝트까지 왔는데 여전히 배운 내용을 실전에 적용하는 건 어렵네요... 특히 이번 프로젝트에서는 데이터 전처리가 정말 중요하다는 걸 몸소 느꼈습니다.모델 구현에 있어 어떤 전처리 데이터값을 가지느냐에 따라 성능이 천차만별로 갈릴 수 있다는 점을 이론적으로 아는 것과 실제 코드를 입력해보고 분석하는 건 차이가 엄청나더라고요. 팀원 분들로부터 많은 걸 배울 수 있어 감사했습니다. 여전히 부족한 저를 잘 도와주셨던 팀원분들 감사드리고 마지막까지 화이팅해봐요..! |
 | **조준상** | ~ ~ ~ |
 | **홍혜원** | ~ ~ ~ |
 
