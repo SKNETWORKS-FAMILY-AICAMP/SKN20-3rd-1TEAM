@@ -59,24 +59,7 @@
 ---
 
 # 3. 🏗️ 시스템 아키텍처
-
-### 🔩 파이프라인 상세 스펙 (Pipeline Specifications)
-
-#### 1) **LLM 호출 프로세스 (Total 4 Steps)**<br>
-
-단일 호출 방식의 한계를 극복하기 위해, 단계별로 특화된 프롬프트를 적용한 **4단계 연쇄 추론** 구조를 설계했습니다.
-
-- **Router**: 질문 검증 및 정책 검색 의도 분류  
-- **Multi-Query**: 3가지 관점(구체적·포괄적·유의어)으로 쿼리 확장  
-- **Answer**: 검색 문서를 기반으로 근거 중심 답변 생성  
-- **Summary**: 핵심 요약을 제공해 **UX 개선**
-
-#### 2) 하이브리드 검색 전략 (Hybrid Search Strategy)
-정책 데이터 특성상 **고유 명사(정책명)**와 **문맥적 의미(지원 내용)**가 모두 중요하므로,<br>테스트 기반 가중치를 적용한 **앙상블 검색**을 사용했습니다.
-
-- **Vector Search (Semantic) 60%**: “배고파”, “잘 곳이 필요해” 등 추상적 의도 파악  
-- **BM25 (Keyword) 40%**: “국민취업지원제도” 등 정확한 키워드 매칭 보완  
-
+<img src = "./image/System Architecture.png" alt="system_architecture" width="800"/>
 ---
 
 # 4. ✨ 핵심 기술 및 기능 (Key Features)
