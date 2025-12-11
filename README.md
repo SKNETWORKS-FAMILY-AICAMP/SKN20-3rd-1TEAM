@@ -57,7 +57,7 @@
 - **데이터 최신성/실현 가능성(Feasibility)**: ‘온통청년’ Open API 기반으로 3,000여 건 정책을 실시간 수집·통합
 
 ---
-
+---
 # 3. 🏗️ 시스템 아키텍처
 <img src = "./image/System Architecture.png" alt="system_architecture" width="800"/>
 ---
