@@ -121,11 +121,11 @@ Hybrid Search 및 Advanced RAG 적용 결과, 정책 검색 정확도가 유의�
 # 7. 💻 실행 화면 (Demo)
 
 - 메인 화면<br>
-<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/4084a7fd-3a2b-4d3a-94b4-e68a1215633c" />
+<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/4084a7fd-3a2b-4d3a-94b4-e68a1215633c" /><br>
 - 검색 화면<br>
-<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/b03f8c81-4b7e-4098-ab42-933ae13aec02" />
+<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/b03f8c81-4b7e-4098-ab42-933ae13aec02" /><br>
 - 결과 화면<br>
-<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/c46933f9-b952-42c8-b84a-58300f7b4673" />
+<img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/c46933f9-b952-42c8-b84a-58300f7b4673" /><br>
 
 ---
 
