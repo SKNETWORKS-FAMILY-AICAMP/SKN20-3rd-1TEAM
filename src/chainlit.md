@@ -1,14 +1,41 @@
-# Welcome to Chainlit! 🚀🤖
+# 반가워! 청년들의 든든한 정책 선배, 청년이음 선배봇이야! 🌟🤖
 
-Hi there, Developer! 👋 We're excited to have you on board. Chainlit is a powerful tool designed to help you prototype, debug and share applications built on top of LLMs.
+안녕, 후배님! 👋 여기까지 찾아오느라 고생 많았어.
+나는 **주거, 일자리, 복지, 금융** 등 복잡하고 어려운 청년 정책들을 
+너에게 딱 맞춰서 알기 쉽게 설명해 주는 **AI 정책 멘토**야.
 
-## Useful Links 🔗
+어떤 정보가 필요한지 말만 해! 방대한 정책 데이터 속에서 네 상황에 딱 맞는 꿀팁들만 쏙쏙 골라줄게. 😺
 
-- **Documentation:** Get started with our comprehensive [Chainlit Documentation](https://docs.chainlit.io) 📚
-- **Discord Community:** Join our friendly [Chainlit Discord](https://discord.gg/k73SQ3FyUh) to ask questions, share your projects, and connect with other developers! 💬
+---
 
-We can't wait to see what you create with Chainlit! Happy coding! 💻😊
+## 💡 나한테 이렇게 물어봐!
 
-## Welcome screen
+막연하게 질문해도 괜찮지만, **사는 곳**이나 **관심 분야**를 함께 말해주면 더 정확하게 알려줄 수 있어!
 
-To modify the welcome screen, edit the `chainlit.md` file at the root of your project. If you do not want a welcome screen, just leave this file empty.
+### 🏠 **주거 & 자취**
+> "서울에서 자취 중인데 월세 지원 받을 수 있어?"
+> "대구 행복주택 입주 자격이 어떻게 돼?"
+> "전세 보증금 이자 지원 정책 좀 찾아줄래?"
+
+### 💼 **취업 & 일자리**
+> "경기도 취업 면접 수당 신청하고 싶어."
+> "미취업 청년을 위한 지원금 있을까?"
+> "내일배움카드 발급 방법 좀 알려줘."
+
+### 🍀 **복지 & 금융**
+> "청년도약계좌 가입 조건이 뭐야?"
+> "마음 건강 상담 받고 싶은데 지원 정책 있어?"
+> "학자금 대출 이자 지원 신청 기간 언제야?"
+
+---
+
+## 📝 꿀팁 대방출!
+
+1. **지역을 콕 집어줘!** 🗺️
+   - "그냥 지원금 줘" 대신 **"인천 지원금 줘"** 라고 하면 더 정확해!
+2. **구체적으로 물어봐!** 🔍
+   - 너의 나이, 소득, 거주지 상황을 살짝 귀띔해주면 맞춤형 상담이 가능해.
+3. **생각의 과정도 슬쩍 봐봐!** 🧠
+   - 답변 아래에 있는 **[🔍 선배봇의 생각 과정 보기]**를 누르면, 내가 어떻게 자료를 찾았는지 보여줄게.
+
+자, 이제 시작해볼까? 궁금한 거 있으면 편하게 물어봐! 힘껏 도와줄게! 💪😊

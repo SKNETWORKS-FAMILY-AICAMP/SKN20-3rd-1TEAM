@@ -16,6 +16,9 @@ chromadb>=0.4.0
 # Data Processing
 requests>=2.31.0
 
+# Chainlit
+chainlit==2.9.3
+
 dotenv>=0.0.5
 # Standard Library (included in Python)
 # - json
