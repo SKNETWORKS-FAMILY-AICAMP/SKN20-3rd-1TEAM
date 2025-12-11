@@ -120,6 +120,11 @@ Hybrid Search 및 Advanced RAG 적용 결과, 정책 검색 정확도가 유의�
 
 # 7. 💻 실행 화면 (Demo)
 
+## UI 화면 기능
+#### 대화 흐름이 한눈에 보이는 ‘메신저형 레이아웃’
+#### 입력창이 고정되어 있어 언제든 바로 질문 가능
+#### 감정 이모티콘·톤 조절이 가능한 답변 스타일
+
 - 메인 화면<br>
 <img width="400" height="400" alt="Image" src="https://github.com/user-attachments/assets/4084a7fd-3a2b-4d3a-94b4-e68a1215633c" /><br><br>
 - 검색 화면<br>
