@@ -1,4 +1,4 @@
-# 청년·1인 가구 생활복지·지원 선배봇🌟
+# RAG 기반 청년 맞춤형 복지 정책 챗봇🌟
 "복잡한 정책, 선배가 간편하고 쉽게 알려줄게!"
 
 
@@ -49,23 +49,23 @@
 ## 3. 시스템 아키텍처
 <img src = "./image/System Architecture.png" alt="system_architecture" width="800"/>
 
-## 4. ✨ 핵심 기술 및 기능 (Key Features)
+## 4. 핵심 기술 및 기능
 
-### 🔍 4.1. 정확도 높은 검색 (Advanced RAG)
+### 4.1. 정확도 높은 검색 (Advanced RAG)
 - Vector Retriever와 BM25 Retriever 결합으로 검색 정확도 개선  
 - RRF를 활용하여 서로 다른 검색 결과를 재정렬해 상위 문서 품질 향상  
 - 짧고 추상적인 질문을 Multi-Query를 이용하여 정책 키워드 관점으로 확장
 
-### 👤 4.2. 개인화 필터링 (Metadata Filtering)
+### 4.2. 개인화 필터링 (Metadata Filtering)
 - 대화에서 나이·지역·상태 정보를 실시간 추출  
 - 사용자 자격과 불일치하는 정책을 사전 제거해 **환각(Hallucination) 위험 감소**
 
-### 🧠 4.3. 지능형 라우팅 (Query Routing)
+### 4.3. 지능형 라우팅 (Query Routing)
 사용자 의도를 정책 검색/일상 대화/정보 요청 등으로 분기해 **불필요한 API 호출 비용을 최소화**
 
 ---
 
-## 5. 📈 트러블 슈팅 (Trouble Shooting)
+## 5. 트러블 슈팅
 
 #### 문제 1: 지역을 바꿔서 질문해도 서울·전국 정책이 섞여서 나옴
 - **원인**: 쿼리에서 `user_region` 정보를 받았지만, 실제 검색 필터에서 region 조건을 제대로 안 걸어서 전국 정책 + 특정 지역 정책이 한 번에 섞여 반환됨
